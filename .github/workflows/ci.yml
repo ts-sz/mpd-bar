@@ -1,0 +1,78 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+    tags: ["v*"]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: macos-14
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Toolchain
+        run: swift --version
+
+      - name: Build app and probe
+        run: |
+          scripts/bundle.sh
+          echo "PROBE=$(swift build -c release --show-bin-path)/mpdbar-probe" >> "$GITHUB_ENV"
+
+      - name: Start a local MPD
+        run: |
+          brew install mpd
+          D="$RUNNER_TEMP/mpd"
+          mkdir -p "$D/music" "$D/playlists"
+          printf '%s\n' \
+            "https://stream.radioparadise.com/mellow-192" \
+            "https://stream.radioparadise.com/mp3-128" > "$D/playlists/ci-radios.m3u"
+          cat > "$D/mpd.conf" <<EOF
+          music_directory    "$D/music"
+          playlist_directory "$D/playlists"
+          db_file            "$D/db"
+          state_file         "$D/state"
+          pid_file           "$D/pid"
+          log_file           "$D/log"
+          bind_to_address    "127.0.0.1"
+          port               "6600"
+          zeroconf_enabled   "no"
+          audio_output {
+            type       "null"
+            name       "null"
+            mixer_type "software"
+          }
+          EOF
+          mpd "$D/mpd.conf"
+          for i in $(seq 1 20); do nc -z 127.0.0.1 6600 && break; sleep 0.5; done
+
+      - name: Probe MPD (read-only)
+        run: |
+          "$PROBE" --mpd 127.0.0.1:6600 --playlist ci-radios
+
+      - name: Probe MPD (play, volume, stop)
+        run: |
+          "$PROBE" --mpd 127.0.0.1:6600 --playlist ci-radios --write
+
+      - name: Probe error path (unknown playlist)
+        run: |
+          set +e
+          out="$("$PROBE" --mpd 127.0.0.1:6600 --playlist nope 2>&1)"
+          code=$?
+          echo "$out"
+          [ "$code" -eq 1 ] && echo "$out" | grep -q 'not found'
+
+      - name: Homebrew formula (HEAD)
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        run: |
+          brew tap-new --no-git local/ci
+          cp Formula/mpd-bar.rb "$(brew --repository)/Library/Taps/local/homebrew-ci/Formula/"
+          brew install --HEAD local/ci/mpd-bar
+          brew test local/ci/mpd-bar
+
+      - name: MPD log
+        if: failure()
+        run: |
+          cat "$RUNNER_TEMP/mpd/log" || true
