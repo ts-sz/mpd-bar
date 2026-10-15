@@ -1,0 +1,12 @@
+title = "mpd-bar gitleaks configuration"
+
+[extend]
+useDefault = true
+
+# Cloudflare Access service token client IDs identify a protected host; they never belong in
+# this repository. Client secrets are caught by the default generic rules.
+[[rules]]
+id = "cloudflare-access-client-id"
+description = "Cloudflare Access service token client ID"
+regex = '''\b[0-9a-f]{32}\.access\b'''
+keywords = [".access"]

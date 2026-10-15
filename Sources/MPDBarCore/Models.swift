@@ -1,7 +1,7 @@
 import Foundation
 
 public enum Version {
-    public static let string = "0.1.0"
+    public static let string = "0.1.1"
 }
 
 /// One entry of the station playlist.

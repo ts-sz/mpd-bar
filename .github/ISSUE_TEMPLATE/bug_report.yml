@@ -1,0 +1,46 @@
+name: Bug report
+description: Something does not work as described.
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Security problems go through a private advisory, not an issue: see SECURITY.md.
+        Never paste a Cloudflare Access secret, an MPD password or a private server address here.
+  - type: input
+    id: version
+    attributes:
+      label: MPD Bar version
+      description: "`brew info mpd-bar` shows it."
+      placeholder: "0.1.1"
+    validations:
+      required: true
+  - type: input
+    id: macos
+    attributes:
+      label: macOS version and chip
+      placeholder: "macOS 15.1, Apple M2"
+    validations:
+      required: true
+  - type: dropdown
+    id: backend
+    attributes:
+      label: Server
+      options:
+        - Mopidy, direct
+        - Mopidy, Cloudflare Access
+        - MPD
+    validations:
+      required: true
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened, and what you expected
+    validations:
+      required: true
+  - type: textarea
+    id: probe
+    attributes:
+      label: mpdbar-probe output
+      description: "Run `mpdbar-probe --mpd HOST:PORT --playlist NAME` (or `--mopidy URL`) and paste the output, with host names removed."
+      render: text

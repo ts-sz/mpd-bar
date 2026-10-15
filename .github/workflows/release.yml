@@ -1,0 +1,139 @@
+name: Release
+
+# Push a tag vX.Y.Z (matching Info.plist, Models.swift and a CHANGELOG section) to publish:
+# universal app + probe zips, SHA256SUMS, release notes, then the Homebrew formula bump on main.
+
+on:
+  push:
+    tags: ["v*.*.*"]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+jobs:
+  build:
+    name: Build release assets
+    runs-on: macos-14
+    timeout-minutes: 30
+    outputs:
+      version: ${{ steps.v.outputs.version }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Check version consistency
+        id: v
+        env:
+          TAG: ${{ github.ref_name }}
+        run: |
+          scripts/check-version.sh "$TAG"
+          echo "version=${TAG#v}" >> "$GITHUB_OUTPUT"
+
+      - name: Build universal app and probe
+        run: UNIVERSAL=1 scripts/bundle.sh
+
+      - name: Smoke test the universal binaries
+        run: |
+          lipo -archs build/MPDBar.app/Contents/MacOS/MPDBar | grep -q arm64
+          lipo -archs build/MPDBar.app/Contents/MacOS/MPDBar | grep -q x86_64
+          codesign --verify --verbose build/MPDBar.app
+          set +e; build/mpdbar-probe >/dev/null 2>&1; code=$?; set -e
+          [ "$code" -eq 2 ]
+
+      - name: Package
+        env:
+          V: ${{ steps.v.outputs.version }}
+        run: |
+          mkdir -p dist
+          ditto -c -k --keepParent build/MPDBar.app "dist/MPDBar-${V}-macos-universal.zip"
+          ditto -c -k build/mpdbar-probe "dist/mpdbar-probe-${V}-macos-universal.zip"
+          (cd dist && shasum -a 256 *.zip > SHA256SUMS && cat SHA256SUMS)
+          scripts/release-notes.sh "v${V}" dist/SHA256SUMS > dist/notes.md
+
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: release-dist
+          path: dist/
+          if-no-files-found: error
+          retention-days: 7
+
+  publish:
+    name: Publish GitHub release
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: release-dist
+          path: dist
+
+      - name: Create or update the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          TAG: ${{ github.ref_name }}
+        run: |
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            gh release upload "$TAG" dist/*.zip dist/SHA256SUMS --clobber
+            gh release edit "$TAG" --notes-file dist/notes.md --title "MPD Bar $TAG" --latest
+          else
+            gh release create "$TAG" dist/*.zip dist/SHA256SUMS \
+              --title "MPD Bar $TAG" --notes-file dist/notes.md --verify-tag --latest
+          fi
+
+  formula:
+    name: Bump Homebrew formula
+    needs: [build, publish]
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: main
+
+      - name: Point the formula at the tag tarball
+        env:
+          TAG: ${{ github.ref_name }}
+          REPO: ${{ github.repository }}
+        run: |
+          url="https://github.com/${REPO}/archive/refs/tags/${TAG}.tar.gz"
+          sha="$(curl -sSfL "$url" | sha256sum | cut -d' ' -f1)"
+          sed -i -E "s|^  url \".*\"|  url \"${url}\"|; s|^  sha256 \"[0-9a-f]{64}\"|  sha256 \"${sha}\"|" Formula/mpd-bar.rb
+          grep -E '^  (url|sha256) ' Formula/mpd-bar.rb
+          if git diff --quiet; then echo "Formula already current."; exit 0; fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git commit -am "Bump formula to ${TAG}"
+          git push origin HEAD:main
+
+  brew-stable:
+    name: Install the released formula
+    needs: formula
+    runs-on: macos-14
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: main
+          persist-credentials: false
+
+      - name: brew install (stable) and brew test
+        env:
+          TAG: ${{ github.ref_name }}
+        run: |
+          grep -q "refs/tags/${TAG}.tar.gz" Formula/mpd-bar.rb
+          brew tap-new --no-git local/release
+          cp Formula/mpd-bar.rb "$(brew --repository)/Library/Taps/local/homebrew-release/Formula/"
+          brew install local/release/mpd-bar
+          brew test local/release/mpd-bar
+          brew info local/release/mpd-bar | head -3
