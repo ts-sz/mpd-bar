@@ -64,8 +64,10 @@ Create the config file, edit it, check it:
 
 ```bash
 mpdbar-probe init                           # writes ~/.config/mpd-bar/config.json (mode 600)
-open -t ~/.config/mpd-bar/config.json       # or any editor
-mpdbar-probe                                # tests the server the file points to
+open -t ~/.config/mpd-bar/config.json       # set the server, and the token if any
+mpdbar-probe playlists                      # what the server has
+mpdbar-probe use radios                     # checks it, saves it in the file
+mpdbar-probe                                # tests the whole config
 ```
 
 The app offers the same from its Settings panel (**Create config file**, **Open**, **Test**)
@@ -126,6 +128,60 @@ Cloudflare Access protects HTTP, not the raw MPD protocol. Reach MPD directly on
 or over a VPN (Tailscale, WireGuard). MPD sends its password in clear text: keep it off the
 open internet.
 
+## Find the playlist name
+
+Once the server (and the Cloudflare token, if any) is in the config file, the probe asks the
+server with the same settings as the app:
+
+```bash
+mpdbar-probe playlists                      # every stored playlist: name, then URI on Mopidy
+mpdbar-probe playlists radio                # only names or URIs containing "radio"
+mpdbar-probe use radios-nice                # checks it has stations, writes it to the file
+```
+
+`use` matches the name exactly, then without case. When two Mopidy playlists share a name
+(one per source), it saves the URI instead, which is unambiguous. It rewrites the file with
+sorted keys; the app picks the change up on its own. A wrong name in the file also shows the
+available playlists, in the panel and in `mpdbar-probe`.
+
+Without a config file, give the server on the command line:
+
+```bash
+mpdbar-probe --mopidy http://music.local:6680 playlists
+mpdbar-probe --mpd music.local:6600 playlists           # MPD_PASSWORD=... if needed
+CF_ACCESS_CLIENT_ID=... CF_ACCESS_CLIENT_SECRET=... \
+  mpdbar-probe --mopidy https://music.example.com playlists
+```
+
+### Without the probe
+
+Mopidy, with `curl` and `jq` (`jq` ships with macOS 15; otherwise `brew install jq`). The
+service token is read from the config file and passed through a header file, so it never shows
+up in the process list or the shell history:
+
+```bash
+CFG=~/.config/mpd-bar/config.json
+RPC="$(jq -r .mopidy.url "$CFG")/mopidy/rpc"
+auth() { jq -r '.mopidy.cloudflare_access // empty |
+  "CF-Access-Client-Id: \(.client_id)\nCF-Access-Client-Secret: \(.client_secret)"' "$CFG"; }
+rpc() { curl -sS "$RPC" -H 'Content-Type: application/json' -H @<(auth) \
+  -d "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"$1\",\"params\":${2:-[]}}"; }
+
+rpc core.playlists.as_list | jq -r '.result[] | "\(.name)\t\(.uri)"' | sort
+rpc core.playlists.get_items '{"uri":"m3u:radios.m3u8"}' | jq -r '.result[].name'
+```
+
+Mopidy direct on the LAN needs no token: the same `rpc` works with no `cloudflare_access`
+section, or with plain `curl http://music.local:6680/mopidy/rpc -d '...'`. Behind Cloudflare
+Access, an answer of `302` to `.../cdn-cgi/access/login/...` means the token was not accepted.
+
+MPD:
+
+```bash
+mpc -h music.local lsplaylists                          # brew install mpc
+printf 'listplaylists\nclose\n' | nc music.local 6600   # nothing to install
+```
+
 ## Command-line probe
 
 `mpdbar-probe` checks a server without the UI. It is read-only unless `--write` is given.
@@ -149,6 +205,7 @@ mpdbar-probe --mpd localhost:6600 --playlist radios --write
 
 | Message in the panel | Cause |
 |---|---|
+| `Config error: "playlist" is empty.` | Run `mpdbar-probe playlists`, then `mpdbar-probe use NAME` |
 | `Config error: missing key "mopidy.url".` | The file does not match the format above; the message names the key |
 | `Access denied. Check the Cloudflare Access client ID and secret.` | Wrong token, or the token is not in a Service Auth policy of the Access application |
 | `Playlist "x" not found. Available: ...` | The name does not match a stored playlist; pick one from the list |

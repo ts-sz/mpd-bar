@@ -94,6 +94,26 @@ jobs:
           set +e; out="$("$PROBE" 2>&1)"; set -e
           echo "$out"; echo "$out" | grep -q 'Cloudflare Access'; ! echo "$out" | grep -q 's3cr3t'
 
+      - name: Playlists helper (playlists, filter, use)
+        run: |
+          export MPDBAR_CONFIG="$RUNNER_TEMP/pl/config.json"
+          "$PROBE" init >/dev/null
+          set +e; out="$("$PROBE" 2>&1)"; set -e
+          echo "$out"; echo "$out" | grep -q 'mpdbar-probe playlists'      # empty playlist hint
+          printf '%s' '{"backend":"mpd","playlist":"","mpd":{"host":"127.0.0.1","port":6600}}' > "$MPDBAR_CONFIG"
+          "$PROBE" playlists | tee "$RUNNER_TEMP/pl.txt"
+          grep -q '^  ci-radios$' "$RUNNER_TEMP/pl.txt"
+          "$PROBE" playlists RADIO | grep -q '1 of 1 match'
+          "$PROBE" playlists nothing-like-this | grep -q '0 of 1 match'
+          "$PROBE" --mpd 127.0.0.1:6600 playlists | grep -q 'ci-radios'
+          set +e; out="$("$PROBE" use nope 2>&1)"; code=$?; set -e
+          echo "$out"; [ "$code" -eq 1 ] && echo "$out" | grep -q 'Available: ci-radios'
+          "$PROBE" use CI-Radios | tee "$RUNNER_TEMP/use.txt"
+          grep -q '"ci-radios", 2 stations' "$RUNNER_TEMP/use.txt"
+          [ "$(plutil -extract playlist raw "$MPDBAR_CONFIG")" = ci-radios ]
+          [ "$(stat -f %Lp "$MPDBAR_CONFIG")" = 600 ]
+          "$PROBE" | grep -q '^OK$'
+
       - name: Release scripts
         run: |
           bash -n scripts/*.sh

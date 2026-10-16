@@ -37,6 +37,8 @@ Then create and edit the config file, and check it:
 \`\`\`bash
 mpdbar-probe init                           # ~/.config/mpd-bar/config.json, mode 600
 open -t ~/.config/mpd-bar/config.json
+mpdbar-probe playlists                      # lists the playlists on the server
+mpdbar-probe use NAME                       # picks one, saved in the file
 mpdbar-probe                                # tests the server in the file
 \`\`\`
 

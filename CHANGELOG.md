@@ -6,6 +6,19 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-10-16
+
+### Added
+- `mpdbar-probe playlists [WORD]` lists the stored playlists on the server (name and Mopidy URI),
+  with the config file's settings and token, or with `--mopidy` / `--mpd`. `WORD` filters.
+- `mpdbar-probe use NAME` checks that a playlist exists and has stations, then saves it in the
+  config file. Duplicate Mopidy names are saved as the unambiguous URI.
+- README: finding the playlist name, including `curl` + `jq` and `mpc` / `nc` recipes that keep
+  the Cloudflare token out of the process list.
+
+### Changed
+- `mpdbar-probe init` writes an empty playlist; an empty playlist points to `mpdbar-probe playlists`.
+
 ## [0.2.0] - 2026-10-16
 
 ### Changed
@@ -60,7 +73,8 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 - Homebrew formula building from source, with a `brew services` launch agent.
 - CI on macOS: build, MPD integration test, formula install from HEAD.
 
-[Unreleased]: https://github.com/ts-sz/mpd-bar/compare/v0.2.0...HEAD
+[Unreleased]: https://github.com/ts-sz/mpd-bar/compare/v0.3.0...HEAD
+[0.3.0]: https://github.com/ts-sz/mpd-bar/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/ts-sz/mpd-bar/compare/v0.1.2...v0.2.0
 [0.1.2]: https://github.com/ts-sz/mpd-bar/compare/v0.1.1...v0.1.2
 [0.1.1]: https://github.com/ts-sz/mpd-bar/compare/v0.1.0...v0.1.1
