@@ -18,11 +18,12 @@ advisory published once users can upgrade.
 
 ## How the app handles secrets
 
-- The Cloudflare Access client ID and secret and the MPD password are stored in the login
-  Keychain (service `mpd-bar`). They are never written to disk elsewhere, logged, or sent to
-  any host other than the server you configure.
-- Settings that are not secret (server URL, host, port, playlist) live in the app's
-  UserDefaults (`io.github.ts-sz.mpd-bar`).
+- The settings, including the Cloudflare Access client ID and secret and the MPD password,
+  live in one file, `~/.config/mpd-bar/config.json`. It is created with mode 600 in a 700
+  directory, and the app and the probe reset it to 600 whenever they read it. Secrets are never
+  logged, shown in the panel, or sent to any host other than the server you configure.
+- Keep the file out of dotfile repositories and backups you share: anyone who reads it can
+  reach your server as you. A Cloudflare service token per Mac limits a leak to one machine.
 - The MPD protocol is plain text TCP: the password and commands travel unencrypted. Use MPD
   on a trusted network or through a VPN. Mopidy over `https://` is encrypted.
 - The app makes no network connection other than to the configured server: no telemetry,

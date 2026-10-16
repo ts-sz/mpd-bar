@@ -6,6 +6,21 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-10-16
+
+### Changed
+- Settings move to one JSON file, `~/.config/mpd-bar/config.json` (or `$MPDBAR_CONFIG`,
+  `$XDG_CONFIG_HOME/mpd-bar/config.json`), shared by the app and `mpdbar-probe`. The app reloads
+  it when it changes. The file is written with mode 600 and reset to 600 on every read.
+- The Settings panel shows the file path, whether it parses, and offers **Create config file**,
+  **Open**, **Reveal**, **Reload** and **Test**. Errors name the exact key at fault.
+- `mpdbar-probe` without arguments tests the server in the config file; `mpdbar-probe init`
+  writes a template; `--config PATH` reads another file; `--help` prints the usage.
+
+### Removed
+- Keychain and UserDefaults storage. Settings from 0.1.x are not migrated: create the config
+  file once (`mpdbar-probe init`). The README lists the commands that remove the leftovers.
+
 ## [0.1.2] - 2026-10-16
 
 ### Fixed
@@ -45,7 +60,8 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 - Homebrew formula building from source, with a `brew services` launch agent.
 - CI on macOS: build, MPD integration test, formula install from HEAD.
 
-[Unreleased]: https://github.com/ts-sz/mpd-bar/compare/v0.1.2...HEAD
+[Unreleased]: https://github.com/ts-sz/mpd-bar/compare/v0.2.0...HEAD
+[0.2.0]: https://github.com/ts-sz/mpd-bar/compare/v0.1.2...v0.2.0
 [0.1.2]: https://github.com/ts-sz/mpd-bar/compare/v0.1.1...v0.1.2
 [0.1.1]: https://github.com/ts-sz/mpd-bar/compare/v0.1.0...v0.1.1
 [0.1.0]: https://github.com/ts-sz/mpd-bar/releases/tag/v0.1.0

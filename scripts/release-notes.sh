@@ -32,7 +32,15 @@ brew install ts-sz/mpd-bar/mpd-bar
 brew services start mpd-bar      # start now and at every login
 \`\`\`
 
-Click the radio icon in the menu bar, fill in **Settings**, press **Test**, then **Save**.
+Then create and edit the config file, and check it:
+
+\`\`\`bash
+mpdbar-probe init                           # ~/.config/mpd-bar/config.json, mode 600
+open -t ~/.config/mpd-bar/config.json
+mpdbar-probe                                # tests the server in the file
+\`\`\`
+
+The format is in the [README](https://github.com/${REPO}#config-file). The app reloads the file on save.
 
 ## Upgrade
 
@@ -42,7 +50,7 @@ brew upgrade mpd-bar
 brew services restart mpd-bar
 \`\`\`
 
-Settings and Keychain secrets are kept across upgrades.
+The config file is kept across upgrades.
 
 ## Manual download (without Homebrew)
 

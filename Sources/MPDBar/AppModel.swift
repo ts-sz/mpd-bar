@@ -3,13 +3,21 @@ import SwiftUI
 
 @MainActor
 final class AppModel: ObservableObject {
-    @Published var settings = PlayerSettings.load()
+    @Published private(set) var config: AppConfig?
+    @Published private(set) var configError: String?
     @Published var stations: [Station] = []
     @Published var status = PlayerStatus()
     @Published var volume: Double = 0
     @Published var error: String?
     @Published var busy = false
     @Published var showingSettings = false
+    @Published var testMessage: String?
+    @Published var testOK = false
+    @Published var testing = false
+
+    let configURL = ConfigFile.defaultURL
+    var configPath: String { ConfigFile.display(configURL) }
+    var configExists: Bool { FileManager.default.fileExists(atPath: configURL.path) }
 
     var isEditingVolume = false
     var isVisible = false {
@@ -18,9 +26,13 @@ final class AppModel: ObservableObject {
 
     private var backend: PlayerBackend?
     private var pollTask: Task<Void, Never>?
+    /// Modification date of the config file when it was last read; nil when it did not exist.
+    private var configStamp: Date?
+    private var configLoaded = false
 
     init() {
-        showingSettings = !settings.isConfigured
+        loadConfig(force: true)
+        showingSettings = config == nil
         pollTask = Task { [weak self] in
             while !Task.isCancelled {
                 await self?.refresh()
@@ -53,27 +65,88 @@ final class AppModel: ObservableObject {
         }
     }
 
-    // MARK: Backend
+    // MARK: Config file
 
-    func applySettings(_ new: PlayerSettings) {
-        new.save()
-        settings = new
+    /// Reads the config file again when it changed since the last read (or always with `force`).
+    func loadConfig(force: Bool = false) {
+        let stamp = ConfigFile.modificationDate(configURL)
+        if configLoaded && !force && stamp == configStamp { return }
+        configLoaded = true
+        configStamp = stamp
         backend = nil
         stations = []
         error = nil
-        showingSettings = false
-        Task { await refresh() }
+        testMessage = nil
+        do {
+            config = try ConfigFile.load(configURL)
+            configError = nil
+        } catch {
+            config = nil
+            configError = error.localizedDescription
+            showingSettings = true
+        }
     }
+
+    /// Writes the template when there is no file yet, then opens it in the default text editor.
+    func createConfig() {
+        if !configExists {
+            do {
+                try ConfigFile.write(.template, to: configURL)
+            } catch {
+                configError = error.localizedDescription
+                return
+            }
+        }
+        loadConfig(force: true)
+        openConfig()
+    }
+
+    func openConfig() {
+        let p = Process()
+        p.executableURL = URL(fileURLWithPath: "/usr/bin/open")
+        p.arguments = ["-t", configURL.path]
+        try? p.run()
+    }
+
+    func revealConfig() {
+        NSWorkspace.shared.activateFileViewerSelecting([configURL])
+    }
+
+    func reloadConfig() async {
+        loadConfig(force: true)
+        await refresh()
+    }
+
+    func test() async {
+        loadConfig(force: true)
+        guard let config else { return }
+        testing = true
+        defer { testing = false }
+        do {
+            let b = try config.makeBackend()
+            let st = try await b.status()
+            let list = try await b.stations()
+            testOK = true
+            testMessage = "Connected: \(st.state.rawValue), \(list.count) stations."
+        } catch {
+            testOK = false
+            testMessage = error.localizedDescription
+        }
+    }
+
+    // MARK: Backend
 
     private func currentBackend() throws -> PlayerBackend {
         if let b = backend { return b }
-        let b = try BackendFactory.make(settings, credentials: .fromKeychain())
+        guard let config else { throw PlayerError.notConfigured }
+        let b = try config.makeBackend()
         backend = b
         return b
     }
 
     func refresh() async {
-        guard settings.isConfigured else { return }
+        loadConfig()
+        guard config != nil else { return }
         do {
             let b = try currentBackend()
             if stations.isEmpty { stations = try await b.stations() }
