@@ -2,12 +2,18 @@ import AppKit
 import MPDBarCore
 import SwiftUI
 
+/// Hover flag held by reference, so no view mutates its own stored state.
+@MainActor
+final class HoverState: ObservableObject {
+    @Published var on = false
+}
+
 struct TransportButton: View {
     let symbol: String
     var primary = false
     var help = ""
     let action: () -> Void
-    @State private var hover = false
+    @StateObject private var hover = HoverState()
 
     var body: some View {
         Button(action: action) {
@@ -16,12 +22,12 @@ struct TransportButton: View {
                 .foregroundStyle(primary ? Color.white : Color.primary)
                 .frame(width: primary ? 44 : 34, height: primary ? 44 : 34)
                 .background(
-                    Circle().fill(primary ? Color.accentColor : Color.primary.opacity(hover ? 0.10 : 0.0))
+                    Circle().fill(primary ? Color.accentColor : Color.primary.opacity(hover.on ? 0.10 : 0.0))
                 )
                 .contentShape(Circle())
         }
         .buttonStyle(.plain)
-        .onHover { hover = $0 }
+        .onHover { [hover] inside in hover.on = inside }
         .help(help)
     }
 }
@@ -30,7 +36,7 @@ struct StationButton: View {
     let station: Station
     let active: Bool
     let action: () -> Void
-    @State private var hover = false
+    @StateObject private var hover = HoverState()
 
     var body: some View {
         Button(action: action) {
@@ -49,12 +55,12 @@ struct StationButton: View {
             .frame(maxWidth: .infinity)
             .background(
                 RoundedRectangle(cornerRadius: 8, style: .continuous)
-                    .fill(active ? Color.accentColor.opacity(0.18) : Color.primary.opacity(hover ? 0.09 : 0.045))
+                    .fill(active ? Color.accentColor.opacity(0.18) : Color.primary.opacity(hover.on ? 0.09 : 0.045))
             )
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
-        .onHover { hover = $0 }
+        .onHover { [hover] inside in hover.on = inside }
         .help(station.name)
     }
 }

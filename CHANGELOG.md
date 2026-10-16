@@ -6,6 +6,18 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ## [Unreleased]
 
+## [0.1.2] - 2026-10-16
+
+### Fixed
+- Build failure with the macOS 27 SDK command line tools ("cannot assign to property: 'self' is
+  immutable" in `SettingsView`). Settings fields and hover flags now live in `ObservableObject`
+  classes instead of view `@State` mutated from methods.
+- Swift 6 language mode: backend actions run on the main actor, removing a data-race diagnostic.
+
+### Added
+- CI job building with the newest installed Xcode on macOS 15 and macOS 26, with warnings as
+  errors, in both Swift 5 and Swift 6 language modes.
+
 ## [0.1.1] - 2026-10-16
 
 ### Added
@@ -33,6 +45,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 - Homebrew formula building from source, with a `brew services` launch agent.
 - CI on macOS: build, MPD integration test, formula install from HEAD.
 
-[Unreleased]: https://github.com/ts-sz/mpd-bar/compare/v0.1.1...HEAD
+[Unreleased]: https://github.com/ts-sz/mpd-bar/compare/v0.1.2...HEAD
+[0.1.2]: https://github.com/ts-sz/mpd-bar/compare/v0.1.1...v0.1.2
 [0.1.1]: https://github.com/ts-sz/mpd-bar/compare/v0.1.0...v0.1.1
 [0.1.0]: https://github.com/ts-sz/mpd-bar/releases/tag/v0.1.0
