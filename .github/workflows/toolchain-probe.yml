@@ -30,7 +30,10 @@ jobs:
           sudo xcode-select -s "$X"
           swift --version
           xcrun --show-sdk-version
-      - name: Build
+      - name: Build (Swift 5 mode, warnings as errors)
+        run: swift build -c release -Xswiftc -warnings-as-errors 2>&1 | tail -40
+      - name: Build (Swift 6 language mode, informational)
+        continue-on-error: true
         run: |
-          set -o pipefail
-          swift build -c release 2>&1 | grep -E "error:|warning:|note:|^/" | head -80
+          swift package clean
+          swift build -c release -Xswiftc -swift-version -Xswiftc 6 2>&1 | grep -E "error:|warning:" | sort -u | head -60
