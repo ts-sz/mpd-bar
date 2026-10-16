@@ -6,6 +6,14 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ## [Unreleased]
 
+## [0.3.1] - 2026-10-16
+
+### Fixed
+- A muted Mopidy server showed **Playing** with no hint why nothing was heard. The status now
+  reads **Playing, muted** in red, the speaker icon becomes a mute toggle (Mopidy only; MPD has
+  no mute), and pressing play on a station or resuming unmutes first. `mpdbar-probe` prints
+  `MUTED` in its status line.
+
 ## [0.3.0] - 2026-10-16
 
 ### Added
@@ -73,7 +81,8 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 - Homebrew formula building from source, with a `brew services` launch agent.
 - CI on macOS: build, MPD integration test, formula install from HEAD.
 
-[Unreleased]: https://github.com/ts-sz/mpd-bar/compare/v0.3.0...HEAD
+[Unreleased]: https://github.com/ts-sz/mpd-bar/compare/v0.3.1...HEAD
+[0.3.1]: https://github.com/ts-sz/mpd-bar/compare/v0.3.0...v0.3.1
 [0.3.0]: https://github.com/ts-sz/mpd-bar/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/ts-sz/mpd-bar/compare/v0.1.2...v0.2.0
 [0.1.2]: https://github.com/ts-sz/mpd-bar/compare/v0.1.1...v0.1.2

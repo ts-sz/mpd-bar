@@ -1,7 +1,7 @@
 import Foundation
 
 public enum Version {
-    public static let string = "0.3.0"
+    public static let string = "0.3.1"
 }
 
 /// One entry of the station playlist.
@@ -43,9 +43,12 @@ public struct PlayerStatus: Sendable, Equatable {
     public var currentURI: String?
     public var currentName: String?
     public var streamTitle: String?
+    /// nil when the server has no mute (MPD): the UI then hides the mute toggle.
+    public var muted: Bool?
 
     public init(state: PlaybackState = .stopped, volume: Int? = nil, currentURI: String? = nil,
-                currentName: String? = nil, streamTitle: String? = nil) {
+                currentName: String? = nil, streamTitle: String? = nil, muted: Bool? = nil) {
+        self.muted = muted
         self.state = state
         self.volume = volume
         self.currentURI = currentURI
@@ -97,4 +100,5 @@ public protocol PlayerBackend: AnyObject {
     func resume() async throws
     func stop() async throws
     func setVolume(_ volume: Int) async throws
+    func setMute(_ muted: Bool) async throws
 }

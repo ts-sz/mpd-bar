@@ -78,6 +78,7 @@ public final class MopidyBackend: PlayerBackend {
             ("core.playback.get_current_track", [:]),
             ("core.playback.get_stream_title", [:]),
             ("core.mixer.get_volume", [:]),
+            ("core.mixer.get_mute", [:]),
         ])
         let track = r[1] as? [String: Any]
         return PlayerStatus(
@@ -85,7 +86,8 @@ public final class MopidyBackend: PlayerBackend {
             volume: r[3] as? Int,
             currentURI: track?["uri"] as? String,
             currentName: track?["name"] as? String,
-            streamTitle: r[2] as? String)
+            streamTitle: r[2] as? String,
+            muted: r.count > 4 ? r[4] as? Bool : nil)
     }
 
     private func resolvePlaylistURI() async throws -> String {
@@ -140,5 +142,9 @@ public final class MopidyBackend: PlayerBackend {
 
     public func setVolume(_ volume: Int) async throws {
         _ = try await call("core.mixer.set_volume", ["volume": max(0, min(100, volume))])
+    }
+
+    public func setMute(_ muted: Bool) async throws {
+        _ = try await call("core.mixer.set_mute", ["mute": muted])
     }
 }
