@@ -1,8 +1,8 @@
 class MpdBar < Formula
   desc "Menu bar remote for MPD and Mopidy web radio playlists"
   homepage "https://github.com/ts-sz/mpd-bar"
-  url "https://github.com/ts-sz/mpd-bar/archive/refs/tags/v0.1.0.tar.gz"
-  sha256 "6cdca69ccc5a0cdf6b235513b421cb5f4656e0cfbd9d07e0892914a21ded192d"
+  url "https://github.com/ts-sz/mpd-bar/archive/refs/tags/v0.1.1.tar.gz"
+  sha256 "2fd0942bc402f8f828f82508769e2d73e16e97885c2d8d189868272c6f6b793e"
   license "MIT"
   head "https://github.com/ts-sz/mpd-bar.git", branch: "main"
 
