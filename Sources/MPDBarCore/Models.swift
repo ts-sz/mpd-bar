@@ -1,7 +1,7 @@
 import Foundation
 
 public enum Version {
-    public static let string = "0.1.2"
+    public static let string = "0.2.0"
 }
 
 /// One entry of the station playlist.
@@ -55,7 +55,7 @@ public enum PlayerError: LocalizedError, Sendable {
     public var errorDescription: String? {
         switch self {
         case .notConfigured:
-            return "Not configured yet. Open Settings."
+            return "Not configured yet: create the config file from Settings."
         case .invalidURL(let s):
             return "Invalid server URL: \(s)"
         case .accessDenied:

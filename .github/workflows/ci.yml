@@ -74,6 +74,26 @@ jobs:
           echo "$out"
           [ "$code" -eq 1 ] && echo "$out" | grep -q 'not found'
 
+      - name: Config file (init, load, errors, permissions)
+        run: |
+          export MPDBAR_CONFIG="$RUNNER_TEMP/cfg/config.json"
+          set +e; "$PROBE" >/dev/null 2>&1; code=$?; set -e
+          [ "$code" -eq 2 ]                                   # no file yet
+          "$PROBE" init | grep -q Wrote
+          [ "$(stat -f %Lp "$MPDBAR_CONFIG")" = 600 ]
+          [ "$(stat -f %Lp "$RUNNER_TEMP/cfg")" = 700 ]
+          printf '%s' '{"backend":"mpd","playlist":"ci-radios","mpd":{"host":"127.0.0.1","port":6600}}' > "$MPDBAR_CONFIG"
+          chmod 644 "$MPDBAR_CONFIG"
+          "$PROBE" | tee "$RUNNER_TEMP/probe.txt"
+          grep -q 'server: MPD 127.0.0.1:6600' "$RUNNER_TEMP/probe.txt"
+          [ "$(stat -f %Lp "$MPDBAR_CONFIG")" = 600 ]          # tightened on read
+          printf '%s' '{"backend":"mopidy","playlist":"x","mopidy":{}}' > "$MPDBAR_CONFIG"
+          set +e; out="$("$PROBE" 2>&1)"; set -e
+          echo "$out"; echo "$out" | grep -q 'missing key "mopidy.url"'
+          printf '%s' '{"backend":"mopidy","playlist":"x","mopidy":{"url":"http://127.0.0.1:9","cloudflare_access":{"client_id":"id.access","client_secret":"s3cr3t-never-printed"}}}' > "$MPDBAR_CONFIG"
+          set +e; out="$("$PROBE" 2>&1)"; set -e
+          echo "$out"; echo "$out" | grep -q 'Cloudflare Access'; ! echo "$out" | grep -q 's3cr3t'
+
       - name: Release scripts
         run: |
           bash -n scripts/*.sh

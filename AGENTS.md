@@ -16,9 +16,12 @@ Design properties to preserve:
    and in both backends, or is shown only where the backend supports it.
 2. **Stations come from the server.** The station list is a stored playlist on the server,
    read at runtime. The app holds no station data.
-3. **Secrets live in the login Keychain**, service `mpd-bar`, accounts `cf-client-id`,
-   `cf-client-secret`, `mpd-password`. Settings that are not secret live in UserDefaults
-   (`settings.v1`). Logs, errors and the probe output carry status codes and messages only.
+3. **One config file, `~/.config/mpd-bar/config.json`** (`$MPDBAR_CONFIG`, else
+   `$XDG_CONFIG_HOME/mpd-bar/config.json`), snake_case JSON decoded into `AppConfig`. The app and
+   the probe read the same file; the app reloads it when its modification date changes. The file
+   holds secrets: it is written 0600 in a 0700 directory and tightened to 0600 on every read.
+   Config errors name the exact key. Logs, errors, `AppConfig.summary` and the probe output never
+   print a secret, only status codes and messages. No Keychain, no UserDefaults.
 4. **Apple frameworks only.** SwiftUI, Foundation, Network, Security. The package has no
    dependencies, which keeps the Homebrew build fast and offline-safe.
 5. **Native look.** System colors, accent color, SF Symbols, 320 pt wide panel, English UI.
@@ -30,9 +33,9 @@ Design properties to preserve:
 
 ```
 Package.swift                  SwiftPM, macOS 13, three targets
-Sources/MPDBarCore/            backends, models, settings, Keychain (no UI)
+Sources/MPDBarCore/            backends, models, config file (no UI)
   Models.swift                 Station, PlayerStatus, PlayerError, PlayerBackend protocol
-  Settings.swift               PlayerSettings, Keychain, Credentials, BackendFactory
+  Config.swift                 AppConfig (JSON schema, validation, makeBackend), ConfigFile (path, load, write 0600)
   MopidyBackend.swift          JSON-RPC 2.0 batches over URLSession
   MPDBackend.swift             MPDClient (one short TCP session per command list) + MPDBackend
 Sources/MPDBar/                the app: AppModel (polling, actions), views
@@ -58,11 +61,12 @@ swift build -c release                  # all targets
 scripts/bundle.sh                       # build/MPDBar.app and build/mpdbar-probe
 scripts/bundle.sh --install             # copy to ~/Applications and launch
 build/mpdbar-probe --mpd 127.0.0.1:6600 --playlist NAME
+build/mpdbar-probe --config FILE.json      # same path as the app
 ```
 
 CI (`macos-14`) builds everything, starts a local MPD with a null audio output and a
 two-station playlist, runs the probe read-only, then with `--write`, checks the
-unknown-playlist error, dry-runs the release scripts, and installs the formula from HEAD.
+unknown-playlist error, the config file path (`init`, load, a missing key, mode 600), dry-runs the release scripts, and installs the formula from HEAD.
 A second job builds with the newest installed Xcode on macOS 15 and 26, warnings as errors, in Swift 5
 and Swift 6 language modes: Macs often run a newer toolchain than the main job. Never mutate view
 `@State` from methods; keep mutable view state in `ObservableObject` classes (the macOS 27 SDK rejects it).

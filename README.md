@@ -16,7 +16,8 @@ previous and next station, volume, and one button per station.
 - **MPD over TCP** (native protocol, port 6600): direct, on your LAN or a VPN such as Tailscale.
 - Native SwiftUI, light and dark mode, no Dock icon. macOS 13 Ventura or later,
   Apple silicon and Intel.
-- Secrets (Cloudflare service token, MPD password) are stored in the login Keychain.
+- One JSON config file, `~/.config/mpd-bar/config.json`, read by the app and the probe and
+  reloaded on save. It is kept private to your user (mode 600).
 - No telemetry: the app talks only to the server you configure.
 
 ## Install
@@ -42,7 +43,7 @@ brew upgrade mpd-bar
 brew services restart mpd-bar
 ```
 
-Settings and Keychain secrets are kept across upgrades.
+The config file is kept across upgrades.
 
 ### Download from the release page
 
@@ -59,20 +60,59 @@ open ~/Applications/MPDBar.app
 
 ## First run
 
-Click the radio icon. The Settings panel opens until a server and a playlist are set.
+Create the config file, edit it, check it:
 
-| Server | Fields |
+```bash
+mpdbar-probe init                           # writes ~/.config/mpd-bar/config.json (mode 600)
+open -t ~/.config/mpd-bar/config.json       # or any editor
+mpdbar-probe                                # tests the server the file points to
+```
+
+The app offers the same from its Settings panel (**Create config file**, **Open**, **Test**)
+and reloads the file whenever it changes. `MPDBAR_CONFIG=/path/to/file.json` points both
+the app (when launched from a shell) and the probe elsewhere.
+
+## Config file
+
+Mopidy behind Cloudflare Access:
+
+```json
+{
+  "backend": "mopidy",
+  "playlist": "radios",
+  "mopidy": {
+    "url": "https://music.example.com",
+    "cloudflare_access": {
+      "client_id": "....access",
+      "client_secret": "..."
+    }
+  }
+}
+```
+
+Mopidy direct: drop `cloudflare_access` and use `"url": "http://music.local:6680"`.
+
+MPD:
+
+```json
+{
+  "backend": "mpd",
+  "playlist": "radios",
+  "mpd": { "host": "music.local", "port": 6600, "password": "" }
+}
+```
+
+| Key | Meaning |
 |---|---|
-| Mopidy, direct | URL such as `http://music.local:6680`, access **Direct** |
-| Mopidy, Cloudflare Access | URL such as `https://music.example.com`, access **Cloudflare Access**, then the service token Client ID and Client Secret |
-| MPD | Host, port (6600), optional password |
+| `backend` | `mopidy` or `mpd` |
+| `playlist` | name of a stored playlist on the server (`radios`), or for Mopidy a URI (`m3u:radios.m3u8`). Each entry becomes a station button, in playlist order |
+| `mopidy.url` | base URL of Mopidy; the app calls `<url>/mopidy/rpc` |
+| `mopidy.cloudflare_access` | optional, service token `client_id` and `client_secret` |
+| `mpd.host`, `mpd.port` | MPD address, port defaults to 6600 |
+| `mpd.password` | optional, empty for none |
 
-**Playlist** is the name of a stored playlist on the server (`radios`), or for Mopidy a
-playlist URI (`m3u:radios.m3u8`). Each entry of the playlist becomes a station button,
-in playlist order.
-
-**Test** checks the connection and counts the stations; **Save** stores the settings
-and loads the stations. To change them later, click the gear icon in the panel.
+Both `mopidy` and `mpd` sections may be present; `backend` picks one. A file that does not
+parse or misses a key shows the exact key in the panel and in `mpdbar-probe`.
 
 ### Cloudflare Access service token
 
@@ -89,8 +129,11 @@ open internet.
 ## Command-line probe
 
 `mpdbar-probe` checks a server without the UI. It is read-only unless `--write` is given.
+Without arguments it reads the config file, exactly like the app.
 
 ```bash
+mpdbar-probe                                # the server in ~/.config/mpd-bar/config.json
+mpdbar-probe --config ./other.json
 mpdbar-probe --mpd music.local:6600 --playlist radios
 mpdbar-probe --mopidy http://music.local:6680 --playlist radios
 
@@ -106,6 +149,7 @@ mpdbar-probe --mpd localhost:6600 --playlist radios --write
 
 | Message in the panel | Cause |
 |---|---|
+| `Config error: missing key "mopidy.url".` | The file does not match the format above; the message names the key |
 | `Access denied. Check the Cloudflare Access client ID and secret.` | Wrong token, or the token is not in a Service Auth policy of the Access application |
 | `Playlist "x" not found. Available: ...` | The name does not match a stored playlist; pick one from the list |
 | `Server unreachable (...)` | Wrong host or port, server down, or no VPN |
@@ -125,9 +169,13 @@ UNIVERSAL=1 scripts/bundle.sh          # universal binaries, as releases do
 brew services stop mpd-bar
 brew uninstall mpd-bar
 brew untap ts-sz/mpd-bar
-security delete-generic-password -s mpd-bar -a cf-client-id
-security delete-generic-password -s mpd-bar -a cf-client-secret
-security delete-generic-password -s mpd-bar -a mpd-password
+rm -r ~/.config/mpd-bar
+```
+
+Versions before 0.2.0 kept settings in the Keychain and UserDefaults. To remove those leftovers:
+
+```bash
+for a in cf-client-id cf-client-secret mpd-password; do security delete-generic-password -s mpd-bar -a "$a"; done
 defaults delete io.github.ts-sz.mpd-bar
 ```
 

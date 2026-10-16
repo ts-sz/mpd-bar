@@ -42,5 +42,5 @@ body:
     id: probe
     attributes:
       label: mpdbar-probe output
-      description: "Run `mpdbar-probe --mpd HOST:PORT --playlist NAME` (or `--mopidy URL`) and paste the output, with host names removed."
+      description: "Run `mpdbar-probe` (it reads your config file) and paste the output, with host names removed. Never paste the config file itself: it holds secrets."
       render: text

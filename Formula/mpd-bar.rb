@@ -40,12 +40,19 @@ class MpdBar < Formula
         brew services start mpd-bar
       Or open it once:
         mpd-bar
-      The radio icon appears in the menu bar. Click it, then fill in Settings.
+      Create the config file, edit it, then check it:
+        mpdbar-probe init
+        open -t ~/.config/mpd-bar/config.json
+        mpdbar-probe
+      The app reloads the file on save. Format: https://github.com/ts-sz/mpd-bar#config-file
     EOS
   end
 
   test do
     assert_predicate prefix/"MPDBar.app/Contents/MacOS/MPDBar", :executable?
-    assert_match "usage", shell_output("#{bin}/mpdbar-probe 2>&1", 2)
+    assert_match "usage", shell_output("#{bin}/mpdbar-probe --help")
+    ENV["MPDBAR_CONFIG"] = (testpath/"config.json").to_s
+    assert_match "Wrote", shell_output("#{bin}/mpdbar-probe init")
+    assert_equal "600", format("%o", (testpath/"config.json").stat.mode & 0777)
   end
 end

@@ -153,7 +153,7 @@ struct PlayerView: View {
             Divider()
 
             HStack(spacing: 12) {
-                Text(m.settings.playlist).font(.system(size: 10)).foregroundStyle(.tertiary).lineLimit(1)
+                Text(m.config?.playlist ?? "").font(.system(size: 10)).foregroundStyle(.tertiary).lineLimit(1)
                 Spacer()
                 Button { Task { await m.reloadStations() } } label: { Image(systemName: "arrow.clockwise") }
                     .help("Reload stations")
