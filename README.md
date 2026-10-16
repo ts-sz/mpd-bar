@@ -209,6 +209,7 @@ mpdbar-probe --mpd localhost:6600 --playlist radios --write
 | `Config error: missing key "mopidy.url".` | The file does not match the format above; the message names the key |
 | `Access denied. Check the Cloudflare Access client ID and secret.` | Wrong token, or the token is not in a Service Auth policy of the Access application |
 | `Playlist "x" not found. Available: ...` | The name does not match a stored playlist; pick one from the list |
+| **Playing**, but no sound | The sound plays on the server's speakers, not on the Mac. Mopidy may be muted: the speaker icon turns red and the status reads **Playing, muted**; click it, or press play on a station, which unmutes |
 | `Server unreachable (...)` | Wrong host or port, server down, or no VPN |
 | `Not an MPD server.` | The port answers, but not with MPD (wrong port) |
 

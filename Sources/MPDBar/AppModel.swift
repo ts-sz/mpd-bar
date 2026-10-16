@@ -46,6 +46,7 @@ final class AppModel: ObservableObject {
     // MARK: Derived state
 
     var isPlaying: Bool { status.state == .playing }
+    var isMuted: Bool { status.muted == true }
 
     var currentStation: Station? { stations.first { $0.uri == status.currentURI } }
 
@@ -59,7 +60,7 @@ final class AppModel: ObservableObject {
     var subtitle: String {
         if let t = status.streamTitle, !t.isEmpty, isPlaying, t != headline { return t }
         switch status.state {
-        case .playing: return "Playing"
+        case .playing: return isMuted ? "Playing, muted" : "Playing"
         case .paused: return "Paused"
         case .stopped: return "Stopped"
         }
@@ -179,15 +180,31 @@ final class AppModel: ObservableObject {
 
     // MARK: Actions
 
+    /// Pressing play means "I want to hear it": a muted server is unmuted first.
     func play(_ s: Station) async {
         status.currentURI = s.uri
-        await run { try await $0.play(s) }
+        let unmute = isMuted
+        await run { b in
+            if unmute { try await b.setMute(false) }
+            try await b.play(s)
+        }
+    }
+
+    func toggleMute() async {
+        guard let muted = status.muted else { return }
+        status.muted = !muted
+        await run { try await $0.setMute(!muted) }
     }
 
     func togglePlay() async {
         switch status.state {
         case .playing: await run { try await $0.pause() }
-        case .paused: await run { try await $0.resume() }
+        case .paused:
+            let unmute = isMuted
+            await run { b in
+                if unmute { try await b.setMute(false) }
+                try await b.resume()
+            }
         case .stopped:
             if let s = currentStation ?? stations.first { await play(s) }
         }

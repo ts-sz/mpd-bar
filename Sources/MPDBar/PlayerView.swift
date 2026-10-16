@@ -83,7 +83,8 @@ struct PlayerView: View {
                 .frame(width: 38, height: 38)
                 VStack(alignment: .leading, spacing: 2) {
                     Text(m.headline).font(.system(size: 13, weight: .semibold)).lineLimit(1)
-                    Text(m.subtitle).font(.system(size: 11)).foregroundStyle(.secondary).lineLimit(1)
+                    Text(m.subtitle).font(.system(size: 11))
+                        .foregroundStyle(m.isMuted ? Color.red : Color.secondary).lineLimit(1)
                 }
                 Spacer(minLength: 0)
                 if m.busy { ProgressView().controlSize(.small) }
@@ -103,10 +104,19 @@ struct PlayerView: View {
 
             // Volume
             HStack(spacing: 8) {
-                Button { Task { await m.setVolume(Int(m.volume) - 5) } } label: {
-                    Image(systemName: "speaker.fill").font(.system(size: 11))
+                if m.status.muted != nil {
+                    Button { Task { await m.toggleMute() } } label: {
+                        Image(systemName: m.isMuted ? "speaker.slash.fill" : "speaker.fill").font(.system(size: 11))
+                    }
+                    .buttonStyle(.plain)
+                    .foregroundStyle(m.isMuted ? Color.red : Color.secondary)
+                    .help(m.isMuted ? "Unmute" : "Mute")
+                } else {
+                    Button { Task { await m.setVolume(Int(m.volume) - 5) } } label: {
+                        Image(systemName: "speaker.fill").font(.system(size: 11))
+                    }
+                    .buttonStyle(.plain).foregroundStyle(.secondary)
                 }
-                .buttonStyle(.plain).foregroundStyle(.secondary)
                 Slider(value: $m.volume, in: 0...100, onEditingChanged: { editing in
                     m.isEditingVolume = editing
                     if !editing { Task { await m.setVolume(Int(m.volume.rounded())) } }

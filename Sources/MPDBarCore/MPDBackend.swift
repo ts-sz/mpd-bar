@@ -270,4 +270,9 @@ public final class MPDBackend: PlayerBackend {
     public func setVolume(_ volume: Int) async throws {
         _ = try await client.exchange(["setvol \(max(0, min(100, volume)))"])
     }
+
+    /// MPD has no mute; `status.muted` stays nil so the UI never offers it.
+    public func setMute(_ muted: Bool) async throws {
+        throw PlayerError.protocolError("MPD has no mute: set the volume to 0 instead.")
+    }
 }

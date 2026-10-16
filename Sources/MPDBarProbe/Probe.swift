@@ -170,7 +170,8 @@ struct Probe {
         }
         do {
             let st = try await backend.status()
-            print("status: \(st.state.rawValue), volume \(st.volume.map(String.init) ?? "n/a")")
+            let mute = st.muted == true ? ", MUTED (no sound until unmuted)" : ""
+            print("status: \(st.state.rawValue), volume \(st.volume.map(String.init) ?? "n/a")\(mute)")
             let stations = try await backend.stations()
             print("stations: \(stations.count)")
             for s in stations.prefix(5) { print("  - \(s.name)  \(s.uri)") }
