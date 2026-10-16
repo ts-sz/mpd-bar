@@ -92,7 +92,7 @@ final class AppModel: ObservableObject {
         await refresh()
     }
 
-    private func run(_ body: (PlayerBackend) async throws -> Void) async {
+    private func run(_ body: @MainActor (PlayerBackend) async throws -> Void) async {
         busy = true
         defer { busy = false }
         do {

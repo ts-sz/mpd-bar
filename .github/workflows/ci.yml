@@ -94,3 +94,32 @@ jobs:
         if: failure()
         run: |
           cat "$RUNNER_TEMP/mpd/log" || true
+
+  toolchains:
+    name: Newest toolchain (${{ matrix.os }})
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [macos-15, macos-26]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Select the newest installed Xcode
+        run: |
+          X="$(ls -d /Applications/Xcode*.app | sort -V | tail -1)"
+          echo "Using $X"
+          sudo xcode-select -s "$X"
+          swift --version
+          echo "SDK $(xcrun --show-sdk-version)"
+
+      - name: Build, warnings as errors
+        run: swift build -c release -Xswiftc -warnings-as-errors
+
+      - name: Build in Swift 6 language mode
+        run: |
+          swift package clean
+          swift build -c release -Xswiftc -swift-version -Xswiftc 6 -Xswiftc -warnings-as-errors

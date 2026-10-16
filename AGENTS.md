@@ -63,6 +63,9 @@ build/mpdbar-probe --mpd 127.0.0.1:6600 --playlist NAME
 CI (`macos-14`) builds everything, starts a local MPD with a null audio output and a
 two-station playlist, runs the probe read-only, then with `--write`, checks the
 unknown-playlist error, dry-runs the release scripts, and installs the formula from HEAD.
+A second job builds with the newest installed Xcode on macOS 15 and 26, warnings as errors, in Swift 5
+and Swift 6 language modes: Macs often run a newer toolchain than the main job. Never mutate view
+`@State` from methods; keep mutable view state in `ObservableObject` classes (the macOS 27 SDK rejects it).
 CodeQL and both secret scanners run on every push and pull request.
 A change is done when every workflow is green.
 
