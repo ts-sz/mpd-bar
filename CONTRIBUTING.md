@@ -33,6 +33,7 @@ Run the probe against a server you control (a local MPD is easiest: `brew instal
 build/mpdbar-probe --mpd 127.0.0.1:6600 --playlist NAME
 build/mpdbar-probe --mpd 127.0.0.1:6600 --playlist NAME --write
 MPDBAR_CONFIG=/tmp/t.json build/mpdbar-probe init     # config file path, without touching yours
+build/mpdbar-probe --mpd 127.0.0.1:6600 playlists
 ```
 
 CI runs the same checks against an MPD started in the runner, plus CodeQL and the secret

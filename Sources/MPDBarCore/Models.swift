@@ -1,7 +1,7 @@
 import Foundation
 
 public enum Version {
-    public static let string = "0.2.0"
+    public static let string = "0.3.0"
 }
 
 /// One entry of the station playlist.
@@ -19,6 +19,17 @@ public struct Station: Identifiable, Hashable, Sendable {
     public static func fallbackName(for uri: String) -> String {
         if let host = URL(string: uri)?.host, !host.isEmpty { return host }
         return uri
+    }
+}
+
+/// A stored playlist on the server. For MPD the URI is the name.
+public struct PlaylistRef: Hashable, Sendable {
+    public let name: String
+    public let uri: String
+
+    public init(name: String, uri: String) {
+        self.name = name
+        self.uri = uri
     }
 }
 
@@ -80,6 +91,7 @@ public enum PlayerError: LocalizedError, Sendable {
 public protocol PlayerBackend: AnyObject {
     func status() async throws -> PlayerStatus
     func stations() async throws -> [Station]
+    func playlists() async throws -> [PlaylistRef]
     func play(_ station: Station) async throws
     func pause() async throws
     func resume() async throws

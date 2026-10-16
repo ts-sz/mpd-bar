@@ -65,7 +65,7 @@ public struct AppConfig: Codable, Equatable, Sendable {
     /// Placeholder written by `mpdbar-probe init` and the app's "Create config file" button.
     public static let template = AppConfig(
         backend: .mopidy,
-        playlist: "radios",
+        playlist: "",
         mopidy: Mopidy(url: "http://music.local:6680"),
         mpd: MPD(host: "music.local", port: 6600, password: ""))
 
@@ -74,8 +74,9 @@ public struct AppConfig: Codable, Equatable, Sendable {
     }
 
     /// Semantic checks the JSON decoder cannot make. Throws `ConfigError.invalid`.
-    public func validate() throws {
-        if Self.blank(playlist) { throw ConfigError.invalid("\"playlist\" is empty.") }
+    /// `requirePlaylist: false` accepts an empty playlist, to list the server's playlists first.
+    public func validate(requirePlaylist: Bool = true) throws {
+        if requirePlaylist && Self.blank(playlist) { throw ConfigError.invalid("\"playlist\" is empty. List the server's playlists with: mpdbar-probe playlists") }
         switch backend {
         case .mopidy:
             guard let m = mopidy else { throw ConfigError.invalid("\"backend\" is \"mopidy\" but there is no \"mopidy\" section.") }
@@ -92,8 +93,8 @@ public struct AppConfig: Codable, Equatable, Sendable {
     }
 
     @MainActor
-    public func makeBackend() throws -> PlayerBackend {
-        try validate()
+    public func makeBackend(requirePlaylist: Bool = true) throws -> PlayerBackend {
+        try validate(requirePlaylist: requirePlaylist)
         let name = playlist.trimmingCharacters(in: .whitespacesAndNewlines)
         switch backend {
         case .mopidy:
@@ -181,7 +182,7 @@ public enum ConfigFile {
         return (try? fm.setAttributes([.posixPermissions: 0o600], ofItemAtPath: url.path)) != nil
     }
 
-    public static func load(_ url: URL = defaultURL) throws -> AppConfig {
+    public static func load(_ url: URL = defaultURL, requirePlaylist: Bool = true) throws -> AppConfig {
         guard FileManager.default.fileExists(atPath: url.path) else { throw ConfigError.missing(display(url)) }
         restrictPermissions(url)
         let data: Data
@@ -198,7 +199,7 @@ public enum ConfigFile {
         } catch let e as DecodingError {
             throw ConfigError.invalid(describe(e))
         }
-        try config.validate()
+        try config.validate(requirePlaylist: requirePlaylist)
         return config
     }
 

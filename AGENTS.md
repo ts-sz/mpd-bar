@@ -34,12 +34,12 @@ Design properties to preserve:
 ```
 Package.swift                  SwiftPM, macOS 13, three targets
 Sources/MPDBarCore/            backends, models, config file (no UI)
-  Models.swift                 Station, PlayerStatus, PlayerError, PlayerBackend protocol
+  Models.swift                 Station, PlaylistRef, PlayerStatus, PlayerError, PlayerBackend protocol
   Config.swift                 AppConfig (JSON schema, validation, makeBackend), ConfigFile (path, load, write 0600)
   MopidyBackend.swift          JSON-RPC 2.0 batches over URLSession
   MPDBackend.swift             MPDClient (one short TCP session per command list) + MPDBackend
 Sources/MPDBar/                the app: AppModel (polling, actions), views
-Sources/MPDBarProbe/           mpdbar-probe, command-line check used by CI
+Sources/MPDBarProbe/           mpdbar-probe: check, init, playlists [WORD], use NAME; used by CI
 Resources/Info.plist           bundle metadata (LSUIElement, macOS 13)
 scripts/bundle.sh              build MPDBar.app + mpdbar-probe; --install; UNIVERSAL=1
 scripts/check-version.sh       tag vs Info.plist vs Models.swift vs CHANGELOG
@@ -66,7 +66,8 @@ build/mpdbar-probe --config FILE.json      # same path as the app
 
 CI (`macos-14`) builds everything, starts a local MPD with a null audio output and a
 two-station playlist, runs the probe read-only, then with `--write`, checks the
-unknown-playlist error, the config file path (`init`, load, a missing key, mode 600), dry-runs the release scripts, and installs the formula from HEAD.
+unknown-playlist error, the config file path (`init`, load, a missing key, mode 600),
+`playlists` and `use` (config file and flag modes), dry-runs the release scripts, and installs the formula from HEAD.
 A second job builds with the newest installed Xcode on macOS 15 and 26, warnings as errors, in Swift 5
 and Swift 6 language modes: Macs often run a newer toolchain than the main job. Never mutate view
 `@State` from methods; keep mutable view state in `ObservableObject` classes (the macOS 27 SDK rejects it).

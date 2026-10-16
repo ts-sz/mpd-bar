@@ -43,7 +43,8 @@ class MpdBar < Formula
       Create the config file, edit it, then check it:
         mpdbar-probe init
         open -t ~/.config/mpd-bar/config.json
-        mpdbar-probe
+        mpdbar-probe playlists
+        mpdbar-probe use NAME
       The app reloads the file on save. Format: https://github.com/ts-sz/mpd-bar#config-file
     EOS
   end

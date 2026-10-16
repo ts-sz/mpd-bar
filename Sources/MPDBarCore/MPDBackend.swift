@@ -222,6 +222,11 @@ public final class MPDBackend: PlayerBackend {
                             streamTitle: value("Title", in: song))
     }
 
+    public func playlists() async throws -> [PlaylistRef] {
+        let r = try await client.exchange(["listplaylists"])
+        return (r.first ?? []).filter { $0.key == "playlist" }.map { PlaylistRef(name: $0.value, uri: $0.value) }
+    }
+
     public func stations() async throws -> [Station] {
         let r: [[MPDPair]]
         do {

@@ -105,6 +105,14 @@ public final class MopidyBackend: PlayerBackend {
         return uri
     }
 
+    public func playlists() async throws -> [PlaylistRef] {
+        let all = (try await call("core.playlists.as_list") as? [[String: Any]]) ?? []
+        return all.compactMap { p in
+            guard let uri = p["uri"] as? String else { return nil }
+            return PlaylistRef(name: (p["name"] as? String) ?? uri, uri: uri)
+        }
+    }
+
     public func stations() async throws -> [Station] {
         let uri = try await resolvePlaylistURI()
         let pl = try await call("core.playlists.lookup", ["uri": uri]) as? [String: Any]
