@@ -14,6 +14,11 @@ final class AppModel: ObservableObject {
     @Published var testMessage: String?
     @Published var testOK = false
     @Published var testing = false
+    @Published var saveError: String?
+    @Published var browse: PlaylistBrowser?
+
+    /// Editable copy shown by the Settings panel; written back through `ConfigFile` on Save.
+    let draft = ConfigDraft()
 
     let configURL = ConfigFile.defaultURL
     var configPath: String { ConfigFile.display(configURL) }
@@ -32,6 +37,7 @@ final class AppModel: ObservableObject {
 
     init() {
         loadConfig(force: true)
+        draft.load(from: config)
         showingSettings = config == nil
         pollTask = Task { [weak self] in
             while !Task.isCancelled {
@@ -119,20 +125,96 @@ final class AppModel: ObservableObject {
         await refresh()
     }
 
-    func test() async {
-        loadConfig(force: true)
-        guard let config else { return }
-        testing = true
-        defer { testing = false }
+    // MARK: Settings editor
+
+    func editSettings() {
+        draft.load(from: config)
+        browse = nil
+        saveError = nil
+        testMessage = nil
+        showingSettings = true
+    }
+
+    func closeEditor() {
+        browse = nil
+        showingSettings = false
+    }
+
+    func saveDraft() {
         do {
-            let b = try config.makeBackend()
-            let st = try await b.status()
-            let list = try await b.stations()
-            testOK = true
-            testMessage = "Connected: \(st.state.rawValue), \(list.count) stations."
+            let cfg = try draft.makeConfig()
+            try ConfigFile.write(cfg, to: configURL)
+            saveError = nil
+            browse = nil
+            loadConfig(force: true)
+            showingSettings = false
         } catch {
-            testOK = false
-            testMessage = error.localizedDescription
+            saveError = error.localizedDescription
+        }
+    }
+
+    /// Tests the panel's draft as typed, without saving it.
+    func testDraft() {
+        testing = true
+        testMessage = nil
+        Task {
+            defer { testing = false }
+            do {
+                let b = try draft.makeConfig().makeBackend()
+                let st = try await b.status()
+                let list = try await b.stations()
+                testOK = true
+                testMessage = "Connected: \(st.state.rawValue), \(list.count) stations."
+            } catch {
+                testOK = false
+                testMessage = error.localizedDescription
+            }
+        }
+    }
+
+    // MARK: Playlist browser
+
+    func openBrowse() {
+        var state = PlaylistBrowser()
+        state.loading = true
+        browse = state
+        Task {
+            do {
+                let cfg = try draft.makeConfig(requirePlaylist: false)
+                let list = try await cfg.makeBackend(requirePlaylist: false).playlists()
+                browse?.items = list.sorted { $0.name.localizedStandardCompare($1.name) == .orderedAscending }
+                browse?.error = nil
+            } catch {
+                browse?.error = error.localizedDescription
+            }
+            browse?.loading = false
+        }
+    }
+
+    var browseFiltered: [PlaylistRef] {
+        guard let b = browse, !b.filter.isEmpty else { return browse?.items ?? [] }
+        return b.items.filter {
+            $0.name.localizedCaseInsensitiveContains(b.filter) || $0.uri.localizedCaseInsensitiveContains(b.filter)
+        }
+    }
+
+    func choosePlaylist(_ p: PlaylistRef) {
+        let duplicate = (browse?.items ?? []).filter {
+            $0.name.caseInsensitiveCompare(p.name) == .orderedSame
+        }.count > 1
+        draft.playlist = duplicate ? p.uri : p.name
+        browse?.count = nil
+        browse?.counting = true
+        Task {
+            do {
+                let cfg = try draft.makeConfig(requirePlaylist: false)
+                let list = try await cfg.makeBackend(requirePlaylist: false).stations()
+                browse?.count = list.count
+                browse?.counting = false
+            } catch {
+                browse?.error = error.localizedDescription
+                browse?.counting = false
+            }
         }
     }
 

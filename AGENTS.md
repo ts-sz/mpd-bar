@@ -25,7 +25,9 @@ Design properties to preserve:
 4. **Apple frameworks only.** SwiftUI, AppKit, Foundation, Network, Security. The package has no
    dependencies, which keeps the Homebrew build fast and offline-safe.
 5. **Native look.** System colors, accent color, SF Symbols, 320 pt wide panel, English UI.
-6. **Shared players stay as they were.** Real servers are often shared rooms. Anything that
+6. **The Settings panel is a draft editor, never a second store.** Every Save goes through
+   `ConfigFile.write` and the app reloads from disk. Panel and hand edits cannot diverge.
+7. **Shared players stay as they were.** Real servers are often shared rooms. Anything that
    plays, stops or changes volume during a test runs against a test server, or records the
    state first and restores it after.
 
@@ -40,6 +42,7 @@ Sources/MPDBarCore/            backends, models, config file (no UI)
   MPDBackend.swift             MPDClient (one short TCP session per command list) + MPDBackend
   MenuBarIcon.swift            radio symbol + state badge (play / pause / mute), template image, 3x bitmap
 Sources/MPDBar/                the app: AppModel (polling, actions), views
+  ConfigDraft.swift            ConnectionMode presets, ConfigDraft (panel draft -> AppConfig), PlaylistBrowser
 Sources/MPDBarProbe/           mpdbar-probe: check, init, playlists [WORD], use NAME, render-icons DIR; used by CI
 Resources/Info.plist           bundle metadata (LSUIElement, macOS 13)
 scripts/bundle.sh              build MPDBar.app + mpdbar-probe; --install; UNIVERSAL=1

@@ -70,9 +70,11 @@ mpdbar-probe use radios                     # checks it, saves it in the file
 mpdbar-probe                                # tests the whole config
 ```
 
-The app offers the same from its Settings panel (**Create config file**, **Open**, **Test**)
-and reloads the file whenever it changes. `MPDBAR_CONFIG=/path/to/file.json` points both
-the app (when launched from a shell) and the probe elsewhere.
+The Settings panel does the same in the app: pick the connection mode (**Cloudflare**,
+**Direct** or **MPD**), fill the fields, **Browse...** lists the server's playlists with
+their track count, then **Save**. It writes the config file (mode 600) and reloads it; hand
+edits stay possible and mix freely. `MPDBAR_CONFIG=/path/to/file.json` points both the app
+(when launched from a shell) and the probe elsewhere.
 
 ## Config file
 
@@ -205,7 +207,8 @@ mpdbar-probe --mpd localhost:6600 --playlist radios --write
 
 | Message in the panel | Cause |
 |---|---|
-| `Config error: "playlist" is empty.` | Run `mpdbar-probe playlists`, then `mpdbar-probe use NAME` |
+| `Config error: "playlist" is empty.` | Pick one in the panel (**Browse...**), or `mpdbar-probe playlists` then `mpdbar-probe use NAME` |
+| `Showing 60 of N.` under the stations | The playlist has more tracks than the one-click grid can show; a search view is planned |
 | `Config error: missing key "mopidy.url".` | The file does not match the format above; the message names the key |
 | `Access denied. Check the Cloudflare Access client ID and secret.` | Wrong token, or the token is not in a Service Auth policy of the Access application |
 | `Playlist "x" not found. Available: ...` | The name does not match a stored playlist; pick one from the list |

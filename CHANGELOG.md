@@ -6,6 +6,16 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ## [Unreleased]
 
+## [0.4.0] - 2026-10-16
+
+### Added
+- The Settings panel now edits the config file in the app: a connection mode picker (Cloudflare
+  Access, Mopidy direct, MPD) prefills the right shape, every field is editable, and **Save**
+  writes the file (mode 600, atomic) and reloads it. The file stays the single source of truth.
+- A playlist browser fetched from the server with the draft's own settings: searchable list,
+  the selected playlist's track count, duplicates saved as their unambiguous URI.
+- **Test** now checks the draft as typed, before saving.
+
 ## [0.3.2] - 2026-10-16
 
 ### Changed
@@ -89,7 +99,8 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 - Homebrew formula building from source, with a `brew services` launch agent.
 - CI on macOS: build, MPD integration test, formula install from HEAD.
 
-[Unreleased]: https://github.com/ts-sz/mpd-bar/compare/v0.3.2...HEAD
+[Unreleased]: https://github.com/ts-sz/mpd-bar/compare/v0.4.0...HEAD
+[0.4.0]: https://github.com/ts-sz/mpd-bar/compare/v0.3.2...v0.4.0
 [0.3.2]: https://github.com/ts-sz/mpd-bar/compare/v0.3.1...v0.3.2
 [0.3.1]: https://github.com/ts-sz/mpd-bar/compare/v0.3.0...v0.3.1
 [0.3.0]: https://github.com/ts-sz/mpd-bar/compare/v0.2.0...v0.3.0

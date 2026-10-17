@@ -68,6 +68,8 @@ struct StationButton: View {
 struct PlayerView: View {
     @EnvironmentObject var m: AppModel
     private let columns = [GridItem(.flexible(), spacing: 6), GridItem(.flexible(), spacing: 6)]
+    /// Beyond this many tracks the grid stops being a station picker; search comes later.
+    private let stationCap = 60
 
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
@@ -149,11 +151,15 @@ struct PlayerView: View {
                     .font(.system(size: 12)).foregroundStyle(.secondary)
             } else {
                 LazyVGrid(columns: columns, spacing: 6) {
-                    ForEach(m.stations) { s in
+                    ForEach(m.stations.prefix(stationCap)) { s in
                         StationButton(station: s, active: s.uri == m.status.currentURI) {
                             Task { await m.play(s) }
                         }
                     }
+                }
+                if m.stations.count > stationCap {
+                    Text("Showing \(stationCap) of \(m.stations.count).")
+                        .font(.system(size: 11)).foregroundStyle(.secondary)
                 }
             }
 
@@ -171,7 +177,7 @@ struct PlayerView: View {
                 Spacer()
                 Button { Task { await m.reloadStations() } } label: { Image(systemName: "arrow.clockwise") }
                     .help("Reload stations")
-                Button { m.showingSettings = true } label: { Image(systemName: "gearshape") }
+                Button { m.editSettings() } label: { Image(systemName: "gearshape") }
                     .help("Settings")
                 Button { NSApplication.shared.terminate(nil) } label: { Image(systemName: "power") }
                     .help("Quit")
