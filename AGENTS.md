@@ -22,7 +22,7 @@ Design properties to preserve:
    holds secrets: it is written 0600 in a 0700 directory and tightened to 0600 on every read.
    Config errors name the exact key. Logs, errors, `AppConfig.summary` and the probe output never
    print a secret, only status codes and messages. No Keychain, no UserDefaults.
-4. **Apple frameworks only.** SwiftUI, Foundation, Network, Security. The package has no
+4. **Apple frameworks only.** SwiftUI, AppKit, Foundation, Network, Security. The package has no
    dependencies, which keeps the Homebrew build fast and offline-safe.
 5. **Native look.** System colors, accent color, SF Symbols, 320 pt wide panel, English UI.
 6. **Shared players stay as they were.** Real servers are often shared rooms. Anything that
@@ -38,8 +38,9 @@ Sources/MPDBarCore/            backends, models, config file (no UI)
   Config.swift                 AppConfig (JSON schema, validation, makeBackend), ConfigFile (path, load, write 0600)
   MopidyBackend.swift          JSON-RPC 2.0 batches over URLSession
   MPDBackend.swift             MPDClient (one short TCP session per command list) + MPDBackend
+  MenuBarIcon.swift            radio symbol + state badge (play / pause / mute), template image, 3x bitmap
 Sources/MPDBar/                the app: AppModel (polling, actions), views
-Sources/MPDBarProbe/           mpdbar-probe: check, init, playlists [WORD], use NAME; used by CI
+Sources/MPDBarProbe/           mpdbar-probe: check, init, playlists [WORD], use NAME, render-icons DIR; used by CI
 Resources/Info.plist           bundle metadata (LSUIElement, macOS 13)
 scripts/bundle.sh              build MPDBar.app + mpdbar-probe; --install; UNIVERSAL=1
 scripts/check-version.sh       tag vs Info.plist vs Models.swift vs CHANGELOG
@@ -67,7 +68,8 @@ build/mpdbar-probe --config FILE.json      # same path as the app
 CI (`macos-14`) builds everything, starts a local MPD with a null audio output and a
 two-station playlist, runs the probe read-only, then with `--write`, checks the
 unknown-playlist error, the config file path (`init`, load, a missing key, mode 600),
-`playlists` and `use` (config file and flag modes), dry-runs the release scripts, and installs the formula from HEAD.
+`playlists` and `use` (config file and flag modes), renders the menu bar icons (artifact `menubar-icons`, check it after any icon change),
+dry-runs the release scripts, and installs the formula from HEAD.
 A second job builds with the newest installed Xcode on macOS 15 and 26, warnings as errors, in Swift 5
 and Swift 6 language modes: Macs often run a newer toolchain than the main job. Never mutate view
 `@State` from methods; keep mutable view state in `ObservableObject` classes (the macOS 27 SDK rejects it).

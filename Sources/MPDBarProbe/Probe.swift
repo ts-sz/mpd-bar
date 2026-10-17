@@ -16,6 +16,7 @@ struct Probe {
            mpdbar-probe init [--config PATH]            write a template config file
            mpdbar-probe playlists [WORD] [--config PATH] list the server's playlists, WORD filters
            mpdbar-probe use NAME [--config PATH]        pick a playlist, saved in the config file
+           mpdbar-probe render-icons DIR                write the menu bar icons as PNG
            mpdbar-probe (--mopidy URL | --mpd HOST[:PORT]) (--playlist NAME [--write] | playlists)
     config: \(ConfigFile.display(ConfigFile.defaultURL)) (override with --config or MPDBAR_CONFIG)
     env:    CF_ACCESS_CLIENT_ID, CF_ACCESS_CLIENT_SECRET, MPD_PASSWORD (with --mopidy / --mpd)
@@ -47,7 +48,7 @@ struct Probe {
             i += 1
         }
         let command = words.first ?? "check"
-        guard ["check", "init", "playlists", "use"].contains(command) else {
+        guard ["check", "init", "playlists", "use", "render-icons"].contains(command) else {
             print("unknown command \"\(command)\"\n")
             print(usage)
             exit(2)
@@ -57,6 +58,22 @@ struct Probe {
         let configURL = value("--config").map { URL(fileURLWithPath: ($0 as NSString).expandingTildeInPath) }
             ?? ConfigFile.defaultURL
         let shown = ConfigFile.display(configURL)
+
+        if command == "render-icons" {
+            guard words.count > 1 else { print(usage); exit(2) }
+            let dir = URL(fileURLWithPath: (words[1] as NSString).expandingTildeInPath, isDirectory: true)
+            do {
+                try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+                for b in MenuBarIcon.Badge.allCases {
+                    guard let png = MenuBarIcon.png(b) else { fail("cannot render the \(b.rawValue) icon") }
+                    try png.write(to: dir.appendingPathComponent("menubar-\(b.rawValue).png"))
+                }
+            } catch {
+                fail(error.localizedDescription)
+            }
+            print("Wrote \(MenuBarIcon.Badge.allCases.count) icons to \(dir.path)")
+            exit(0)
+        }
 
         if command == "init" {
             if FileManager.default.fileExists(atPath: configURL.path) {

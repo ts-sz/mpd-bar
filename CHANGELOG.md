@@ -6,6 +6,14 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ## [Unreleased]
 
+## [0.3.2] - 2026-10-16
+
+### Changed
+- One menu bar icon for every state: the radio symbol, with a small badge for play, pause or
+  mute, and no badge when stopped. It replaces the switch between two different symbols. The
+  panel's now-playing tile uses the same icon.
+- `mpdbar-probe render-icons DIR` writes the icons as PNG; CI publishes them as an artifact.
+
 ## [0.3.1] - 2026-10-16
 
 ### Fixed
@@ -81,7 +89,8 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 - Homebrew formula building from source, with a `brew services` launch agent.
 - CI on macOS: build, MPD integration test, formula install from HEAD.
 
-[Unreleased]: https://github.com/ts-sz/mpd-bar/compare/v0.3.1...HEAD
+[Unreleased]: https://github.com/ts-sz/mpd-bar/compare/v0.3.2...HEAD
+[0.3.2]: https://github.com/ts-sz/mpd-bar/compare/v0.3.1...v0.3.2
 [0.3.1]: https://github.com/ts-sz/mpd-bar/compare/v0.3.0...v0.3.1
 [0.3.0]: https://github.com/ts-sz/mpd-bar/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/ts-sz/mpd-bar/compare/v0.1.2...v0.2.0
