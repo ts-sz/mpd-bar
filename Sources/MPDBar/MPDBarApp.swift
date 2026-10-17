@@ -9,7 +9,9 @@ struct MPDBarApp: App {
         MenuBarExtra {
             RootView().environmentObject(model)
         } label: {
-            Image(systemName: model.isPlaying ? "dot.radiowaves.left.and.right" : "radio")
+            Image(nsImage: MenuBarIcon.image(model.iconBadge))
+                .renderingMode(.template)
+                .accessibilityLabel("MPD Bar, \(model.subtitle)")
         }
         .menuBarExtraStyle(.window)
     }

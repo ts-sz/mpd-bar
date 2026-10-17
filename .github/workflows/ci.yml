@@ -114,6 +114,22 @@ jobs:
           [ "$(stat -f %Lp "$MPDBAR_CONFIG")" = 600 ]
           "$PROBE" | grep -q '^OK$'
 
+      - name: Menu bar icons
+        run: |
+          "$PROBE" render-icons "$RUNNER_TEMP/icons"
+          for b in none play pause mute; do
+            f="$RUNNER_TEMP/icons/menubar-$b.png"
+            [ "$(sips -g pixelWidth "$f" | awk '/pixelWidth/ {print $2}')" = 66 ]
+          done
+          # Badges must differ from each other and from the bare radio.
+          [ "$(shasum "$RUNNER_TEMP"/icons/*.png | awk '{print $1}' | sort -u | wc -l | tr -d ' ')" = 4 ]
+
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: menubar-icons
+          path: ${{ runner.temp }}/icons
+          retention-days: 7
+
       - name: Release scripts
         run: |
           bash -n scripts/*.sh

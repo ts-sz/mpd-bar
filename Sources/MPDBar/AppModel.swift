@@ -47,6 +47,7 @@ final class AppModel: ObservableObject {
 
     var isPlaying: Bool { status.state == .playing }
     var isMuted: Bool { status.muted == true }
+    var iconBadge: MenuBarIcon.Badge { MenuBarIcon.badge(state: status.state, muted: isMuted) }
 
     var currentStation: Station? { stations.first { $0.uri == status.currentURI } }
 

@@ -76,8 +76,12 @@ struct PlayerView: View {
                 ZStack {
                     RoundedRectangle(cornerRadius: 9, style: .continuous)
                         .fill(Color.accentColor.opacity(0.15))
-                    Image(systemName: m.isPlaying ? "dot.radiowaves.left.and.right" : "radio")
-                        .font(.system(size: 15, weight: .medium))
+                    Image(nsImage: MenuBarIcon.image(m.iconBadge))
+                        .renderingMode(.template)
+                        .resizable()
+                        .interpolation(.high)
+                        .scaledToFit()
+                        .frame(width: 24, height: 20)
                         .foregroundStyle(Color.accentColor)
                 }
                 .frame(width: 38, height: 38)
