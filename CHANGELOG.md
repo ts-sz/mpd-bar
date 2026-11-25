@@ -30,6 +30,8 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
   one.
 
 ### Changed
+- CI, CodeQL and release jobs run on `macos-15`: GitHub retired the `macos-14` image. The app
+  still targets macOS 13.
 - An unchanged server no longer redraws the panel and the menu bar icon on every poll, and a
   slider drag redraws the volume row only.
 
