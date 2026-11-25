@@ -6,6 +6,8 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ## [Unreleased]
 
+## [0.5.0] - 2026-11-25
+
 ### Added
 - Round **-** and **+** buttons on each side of the volume slider, 5 steps per click. Held down,
   they repeat (macOS 14+). The Up and Down arrow keys do the same while the panel is open. The
@@ -141,7 +143,8 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 - Homebrew formula building from source, with a `brew services` launch agent.
 - CI on macOS: build, MPD integration test, formula install from HEAD.
 
-[Unreleased]: https://github.com/ts-sz/mpd-bar/compare/v0.4.0...HEAD
+[Unreleased]: https://github.com/ts-sz/mpd-bar/compare/v0.5.0...HEAD
+[0.5.0]: https://github.com/ts-sz/mpd-bar/compare/v0.4.0...v0.5.0
 [0.4.0]: https://github.com/ts-sz/mpd-bar/compare/v0.3.2...v0.4.0
 [0.3.2]: https://github.com/ts-sz/mpd-bar/compare/v0.3.1...v0.3.2
 [0.3.1]: https://github.com/ts-sz/mpd-bar/compare/v0.3.0...v0.3.1
