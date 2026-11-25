@@ -6,6 +6,12 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ## [Unreleased]
 
+## [0.5.1] - 2026-11-25
+
+### Changed
+- The volume moves 1 by 1: the -/+ buttons and the Up/Down arrow keys step by 1 (held down, they
+  keep going), and the slider snaps to whole values.
+
 ## [0.5.0] - 2026-11-25
 
 ### Added
@@ -143,7 +149,8 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 - Homebrew formula building from source, with a `brew services` launch agent.
 - CI on macOS: build, MPD integration test, formula install from HEAD.
 
-[Unreleased]: https://github.com/ts-sz/mpd-bar/compare/v0.5.0...HEAD
+[Unreleased]: https://github.com/ts-sz/mpd-bar/compare/v0.5.1...HEAD
+[0.5.1]: https://github.com/ts-sz/mpd-bar/compare/v0.5.0...v0.5.1
 [0.5.0]: https://github.com/ts-sz/mpd-bar/compare/v0.4.0...v0.5.0
 [0.4.0]: https://github.com/ts-sz/mpd-bar/compare/v0.3.2...v0.4.0
 [0.3.2]: https://github.com/ts-sz/mpd-bar/compare/v0.3.1...v0.3.2

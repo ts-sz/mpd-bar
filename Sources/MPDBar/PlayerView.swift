@@ -84,7 +84,7 @@ struct VolumeRow: View {
             }
             VolumeStepButton(symbol: "minus", help: "Volume down \(AppModel.volumeStep) (Down arrow)",
                              key: .downArrow) { m.nudgeVolume(-AppModel.volumeStep) }
-            Slider(value: $vol.value, in: 0...100, onEditingChanged: { editing in
+            Slider(value: $vol.value, in: 0...100, step: 1, onEditingChanged: { editing in
                 if editing { m.beginVolumeDrag() } else { m.commitVolume(Int(vol.value.rounded())) }
             })
             .controlSize(.small)

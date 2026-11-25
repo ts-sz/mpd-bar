@@ -529,7 +529,7 @@ final class AppModel: ObservableObject {
     }
 
     /// Step of the -/+ buttons and the arrow keys.
-    static let volumeStep = 5
+    static let volumeStep = 1
 
     private func holdVolume() { volumeHoldUntil = Date().addingTimeInterval(1.5) }
 
