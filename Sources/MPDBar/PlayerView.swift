@@ -85,11 +85,7 @@ struct VolumeRow: View {
             VolumeStepButton(symbol: "minus", help: "Volume down \(AppModel.volumeStep) (Down arrow)",
                              key: .downArrow) { m.nudgeVolume(-AppModel.volumeStep) }
             Slider(value: $vol.value, in: 0...100, onEditingChanged: { editing in
-                m.isEditingVolume = editing
-                guard !editing else { return }
-                // Read now: a poll landing before the task runs must not change what is sent.
-                let target = Int(vol.value.rounded())
-                Task { await m.setVolume(target) }
+                if editing { m.beginVolumeDrag() } else { m.commitVolume(Int(vol.value.rounded())) }
             })
             .controlSize(.small)
             VolumeStepButton(symbol: "plus", help: "Volume up \(AppModel.volumeStep) (Up arrow)",

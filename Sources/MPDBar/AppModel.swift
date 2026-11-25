@@ -61,6 +61,9 @@ final class AppModel: ObservableObject {
     /// Bumped by every action and backend reset: a poll started before discards its result.
     private var epoch = 0
     private var pendingActions = 0
+    /// The poll queued or running in the chain; an action cancels it instead of waiting for it.
+    private var pollOp: Task<Void, Never>?
+    private var pollQueued = false
     private var stationsRetryAt = Date.distantPast
     /// Latest-wins counters: a queued play or volume superseded by a later click is skipped.
     private var playIntent = 0
@@ -210,6 +213,7 @@ final class AppModel: ObservableObject {
         do {
             let cfg = try draft.makeConfig()
             try ConfigFile.write(cfg, to: configURL)
+            cancelTest()
             saveError = nil
             browse = nil
             loadConfig(force: true)
@@ -249,6 +253,7 @@ final class AppModel: ObservableObject {
 
     func openBrowse() {
         browseToken += 1
+        countToken += 1
         let mine = browseToken
         var state = PlaylistBrowser()
         state.loading = true
@@ -312,19 +317,32 @@ final class AppModel: ObservableObject {
         return b
     }
 
-    /// Runs `op` after everything queued before it.
-    private func serial(_ op: @escaping @MainActor @Sendable () async -> Void) async {
+    /// Queues `op` after everything queued before it and returns its task.
+    @discardableResult
+    private func enqueue(_ op: @escaping @MainActor @Sendable () async -> Void) -> Task<Void, Never> {
         let previous = tail
         let task = Task { @MainActor in
             _ = await previous?.value
             await op()
         }
         tail = task
-        await task.value
+        return task
     }
 
+    /// One poll at most waits in the chain: opening the panel several times does not stack them.
     func refresh() async {
-        await serial { await self.refreshNow() }
+        if pollQueued, let op = pollOp {
+            await op.value
+            return
+        }
+        pollQueued = true
+        let op = enqueue {
+            self.pollQueued = false
+            guard !Task.isCancelled else { return }
+            await self.refreshNow()
+        }
+        pollOp = op
+        await op.value
     }
 
     /// One poll. Every `@Published` write is guarded, so an unchanged server redraws nothing.
@@ -357,7 +375,8 @@ final class AppModel: ObservableObject {
                 }
             }
         } catch {
-            guard started == epoch else { return }
+            // A poll cut short by an action is not an error worth showing.
+            guard started == epoch, !Task.isCancelled else { return }
             let msg = error.localizedDescription
             if self.error != msg { self.error = msg }
         }
@@ -370,9 +389,10 @@ final class AppModel: ObservableObject {
 
     private func run(_ body: @escaping @MainActor @Sendable (PlayerBackend) async throws -> Void) async {
         epoch += 1
+        pollOp?.cancel()        // its result would be dropped anyway; do not wait for it
         pendingActions += 1
         if !busy { busy = true }
-        await serial {
+        await enqueue {
             do {
                 try await body(try self.currentBackend())
                 if self.error != nil { self.error = nil }
@@ -381,7 +401,7 @@ final class AppModel: ObservableObject {
             }
             // Only the last queued action reads the state back.
             if self.pendingActions == 1 { await self.refreshNow() }
-        }
+        }.value
         pendingActions -= 1
         if pendingActions == 0 { busy = false }
     }
@@ -440,6 +460,23 @@ final class AppModel: ObservableObject {
             guard mine == self.volumeIntent else { return }
             try await b.setVolume(clamped)
         }
+    }
+
+    /// Slider drag starts: a -/+ click still waiting must not move the thumb mid-drag.
+    func beginVolumeDrag() {
+        isEditingVolume = true
+        volumeSend?.cancel()
+        volumeSend = nil
+    }
+
+    /// Slider released: hold the value and invalidate polls in flight before the task runs,
+    /// so no poll lands in between and snaps the thumb back.
+    func commitVolume(_ v: Int) {
+        isEditingVolume = false
+        volume = Double(max(0, min(100, v)))
+        holdVolume()
+        epoch += 1
+        Task { await setVolume(v) }
     }
 
     /// Step of the -/+ buttons and the arrow keys.

@@ -140,26 +140,28 @@ final class MPDConnection: @unchecked Sendable {
 }
 
 /// Returns `op`'s result, or throws "timed out" after `seconds`, whichever comes first.
-/// A stuck `op` is cancelled and left behind; the caller is never held past the deadline.
+/// Cancelling the caller cancels `op`; the timer stops as soon as `op` is done.
 func withDeadline<T: Sendable>(seconds: UInt64,
                                _ op: @escaping @Sendable () async throws -> T) async throws -> T {
     let once = OnceFlag()
-    return try await withCheckedThrowingContinuation { (cont: CheckedContinuation<T, Error>) in
-        let work = Task {
-            do {
-                let v = try await op()
-                if once.claim() { cont.resume(returning: v) }
-            } catch {
-                if once.claim() { cont.resume(throwing: error) }
+    let work = Task { try await op() }
+    return try await withTaskCancellationHandler {
+        try await withCheckedThrowingContinuation { (cont: CheckedContinuation<T, Error>) in
+            let timer = Task {
+                try? await Task.sleep(nanoseconds: seconds * 1_000_000_000)
+                if !Task.isCancelled, once.claim() {
+                    work.cancel()
+                    cont.resume(throwing: PlayerError.unreachable("timed out"))
+                }
+            }
+            Task {
+                let r = await work.result
+                timer.cancel()
+                if once.claim() { cont.resume(with: r) }
             }
         }
-        Task {
-            try? await Task.sleep(nanoseconds: seconds * 1_000_000_000)
-            if once.claim() {
-                work.cancel()
-                cont.resume(throwing: PlayerError.unreachable("timed out"))
-            }
-        }
+    } onCancel: {
+        work.cancel()
     }
 }
 
@@ -205,6 +207,14 @@ public struct MPDClient: Sendable {
             conn.close()
         }
 
+        return try await withTaskCancellationHandler {
+            try await converse(conn, commands)
+        } onCancel: {
+            conn.close()
+        }
+    }
+
+    private func converse(_ conn: MPDConnection, _ commands: [String]) async throws -> [[MPDPair]] {
         try await conn.open()
         let greeting = try await conn.readResponse()
         guard greeting.last?.hasPrefix("OK MPD") == true else {
