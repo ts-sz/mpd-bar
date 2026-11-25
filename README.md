@@ -26,6 +26,7 @@ previous and next station, volume, and one button per station.
 
 ```bash
 brew tap ts-sz/mpd-bar https://github.com/ts-sz/mpd-bar
+brew trust ts-sz/mpd-bar          # recent Homebrew refuses third-party taps until trusted
 brew install ts-sz/mpd-bar/mpd-bar
 mpd-bar                          # opens the app
 ```

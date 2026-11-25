@@ -28,6 +28,7 @@ Homebrew builds the app on your Mac from source (needs the Xcode Command Line To
 
 \`\`\`bash
 brew tap ts-sz/mpd-bar https://github.com/${REPO}
+brew trust ts-sz/mpd-bar          # recent Homebrew refuses third-party taps until trusted
 brew install ts-sz/mpd-bar/mpd-bar
 mpd-bar                          # opens the app
 \`\`\`
