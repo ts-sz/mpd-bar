@@ -27,20 +27,31 @@ previous and next station, volume, and one button per station.
 ```bash
 brew tap ts-sz/mpd-bar https://github.com/ts-sz/mpd-bar
 brew install ts-sz/mpd-bar/mpd-bar
-brew services start mpd-bar      # start now and at every login
+mpd-bar                          # opens the app
 ```
+
+To start it at every login, turn on **Open at login** at the bottom of Settings (it shows up in
+System Settings > General > Login Items). MPD Bar is a normal app, not a `brew services` service.
 
 Homebrew builds the app on your Mac from source, so it needs the Xcode Command Line Tools
 (`xcode-select --install`). A locally built app opens without any Gatekeeper prompt.
 
-To open it once without starting it at login, run `mpd-bar` instead of `brew services start`.
 
 ### Upgrade
 
 ```bash
 brew update
 brew upgrade mpd-bar
-brew services restart mpd-bar
+```
+
+Quit MPD Bar (**Quit** at the bottom of the panel, or Command-Q) and run `mpd-bar` again.
+
+**From 0.4.x**, which ran as a `brew services` service: remove that service once, before or after
+upgrading, so the app does not start twice:
+
+```bash
+launchctl bootout gui/$(id -u)/homebrew.mxcl.mpd-bar 2>/dev/null
+rm -f ~/Library/LaunchAgents/homebrew.mxcl.mpd-bar.plist
 ```
 
 The config file is kept across upgrades.
@@ -227,7 +238,7 @@ UNIVERSAL=1 scripts/bundle.sh          # universal binaries, as releases do
 ## Uninstall
 
 ```bash
-brew services stop mpd-bar
+osascript -e 'quit app "MPDBar"'      # then turn off "Open at login" first if it was on
 brew uninstall mpd-bar
 brew untap ts-sz/mpd-bar
 rm -r ~/.config/mpd-bar

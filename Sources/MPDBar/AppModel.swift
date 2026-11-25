@@ -1,4 +1,5 @@
 import MPDBarCore
+import ServiceManagement
 import SwiftUI
 
 /// Volume shown by the panel, kept out of `AppModel` so a slider drag or a -/+ click
@@ -25,6 +26,9 @@ final class AppModel: ObservableObject {
     @Published var testing = false
     @Published var saveError: String?
     @Published var browse: PlaylistBrowser?
+    /// State of the macOS login item, read from the system, never stored by the app.
+    @Published private(set) var openAtLogin = false
+    @Published private(set) var loginItemMessage: String?
 
     let vol = VolumeState()
     var volume: Double {
@@ -76,7 +80,9 @@ final class AppModel: ObservableObject {
     private var countToken = 0
 
     init() {
+        Self.exitIfAlreadyRunning()
         loadConfig(force: true)
+        refreshLoginItem()
         draft.load(from: config)
         showingSettings = config == nil
         startPolling(refreshFirst: true)
@@ -94,6 +100,48 @@ final class AppModel: ObservableObject {
                 try? await Task.sleep(nanoseconds: seconds * 1_000_000_000)
             }
         }
+    }
+
+    /// A second copy (login item plus a manual launch, or an old brew service) would put a
+    /// second icon in the menu bar: the newcomer leaves at once.
+    private static func exitIfAlreadyRunning() {
+        guard let id = Bundle.main.bundleIdentifier else { return }
+        let me = ProcessInfo.processInfo.processIdentifier
+        if NSRunningApplication.runningApplications(withBundleIdentifier: id)
+            .contains(where: { $0.processIdentifier != me }) {
+            exit(0)
+        }
+    }
+
+    // MARK: Open at login
+
+    func refreshLoginItem() {
+        let status = SMAppService.mainApp.status
+        openAtLogin = status == .enabled
+        if status == .requiresApproval {
+            loginItemMessage = "Allow MPD Bar in System Settings > General > Login Items."
+        }
+    }
+
+    func setOpenAtLogin(_ on: Bool) {
+        loginItemMessage = nil
+        do {
+            if on {
+                try SMAppService.mainApp.register()
+            } else {
+                try SMAppService.mainApp.unregister()
+            }
+        } catch {
+            loginItemMessage = "Login item: \(error.localizedDescription)"
+        }
+        refreshLoginItem()
+        if SMAppService.mainApp.status == .requiresApproval {
+            SMAppService.openSystemSettingsLoginItems()
+        }
+    }
+
+    func quit() {
+        NSApplication.shared.terminate(nil)
     }
 
     // MARK: Derived state
@@ -188,6 +236,7 @@ final class AppModel: ObservableObject {
     // MARK: Settings editor
 
     func editSettings() {
+        refreshLoginItem()
         draft.load(from: config)
         browse = nil
         saveError = nil

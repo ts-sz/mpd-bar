@@ -11,7 +11,20 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
   they repeat (macOS 14+). The Up and Down arrow keys do the same while the panel is open. The
   number moves at once; the server gets one call when the clicks pause, not one per step.
 
+- **Open at login** switch at the bottom of Settings, a standard macOS login item
+  (System Settings > General > Login Items).
+- A labelled **Quit** button at the bottom of the panel and of Settings, and Command-Q. Settings
+  had no way to quit, and a broken config file opens Settings.
+
+### Removed
+- The Homebrew `service` block: MPD Bar is a menu bar app, not a background service, and
+  `brew services` did not start it reliably. Coming from 0.4.x, remove the old service once
+  (`launchctl bootout gui/$(id -u)/homebrew.mxcl.mpd-bar`, then delete
+  `~/Library/LaunchAgents/homebrew.mxcl.mpd-bar.plist`).
+
 ### Fixed
+- A second copy of the app (login item plus a manual launch, or a leftover brew service) exits at
+  once instead of adding a second menu bar icon.
 - Polls and actions now run one at a time, in click order. A poll sent before a click no longer
   lands after it and snaps the slider, the station or the mute back for a few seconds, and the
   last of several fast clicks always wins.

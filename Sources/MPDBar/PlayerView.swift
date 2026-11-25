@@ -219,8 +219,11 @@ struct PlayerView: View {
                     .help("Reload stations")
                 Button { m.editSettings() } label: { Image(systemName: "gearshape") }
                     .help("Settings")
-                Button { NSApplication.shared.terminate(nil) } label: { Image(systemName: "power") }
-                    .help("Quit")
+                Button { m.quit() } label: {
+                    Label("Quit", systemImage: "power").labelStyle(.titleAndIcon)
+                }
+                .keyboardShortcut("q", modifiers: .command)
+                .help("Quit MPD Bar (Command-Q)")
             }
             .buttonStyle(.plain)
             .font(.system(size: 12))

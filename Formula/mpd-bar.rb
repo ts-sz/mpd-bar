@@ -28,18 +28,14 @@ class MpdBar < Formula
     chmod 0755, bin/"mpd-bar"
   end
 
-  service do
-    run [opt_prefix/"MPDBar.app/Contents/MacOS/MPDBar"]
-    run_type :immediate
-    keep_alive false
-  end
-
   def caveats
     <<~EOS
-      Start MPD Bar now and at every login:
-        brew services start mpd-bar
-      Or open it once:
+      Open MPD Bar:
         mpd-bar
+      To start it at every login, turn on "Open at login" in its Settings.
+      Coming from 0.4.x with brew services: stop the old service once:
+        launchctl bootout gui/$(id -u)/homebrew.mxcl.mpd-bar 2>/dev/null
+        rm -f ~/Library/LaunchAgents/homebrew.mxcl.mpd-bar.plist
       Create the config file, edit it, then check it:
         mpdbar-probe init
         open -t ~/.config/mpd-bar/config.json
