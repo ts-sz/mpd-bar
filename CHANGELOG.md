@@ -6,6 +6,33 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ## [Unreleased]
 
+### Added
+- Round **-** and **+** buttons on each side of the volume slider, 5 steps per click. Held down,
+  they repeat (macOS 14+). The Up and Down arrow keys do the same while the panel is open. The
+  number moves at once; the server gets one call when the clicks pause, not one per step.
+
+### Fixed
+- Polls and actions now run one at a time, in click order. A poll sent before a click no longer
+  lands after it and snaps the slider, the station or the mute back for a few seconds, and the
+  last of several fast clicks always wins.
+- Opening the panel restarts polling at once instead of waiting out the 30 s background sleep.
+- A dead or sleeping server can no longer freeze the panel: Mopidy requests stop after 12 s at
+  most (own URL session, no waiting for connectivity), MPD exchanges have a hard deadline even
+  if the connection never calls back.
+- MPD: one invalid UTF-8 byte in a tag no longer stalls every poll until the watchdog; a long
+  answer is no longer decoded again on every chunk, and an oversized answer is refused.
+- A wrong or empty playlist no longer refetches on every poll or shows "Loading..." forever; the
+  error shows in the station area and is retried every 30 s.
+- A playlist that lists the same stream twice no longer gives duplicate grid identities.
+- A half-saved hand edit of the config file keeps the last good config instead of clearing the
+  stations and forcing Settings open.
+- Settings: a slower earlier Test, playlist list or station count can no longer overwrite a newer
+  one.
+
+### Changed
+- An unchanged server no longer redraws the panel and the menu bar icon on every poll, and a
+  slider drag redraws the volume row only.
+
 ## [0.4.0] - 2026-10-16
 
 ### Added

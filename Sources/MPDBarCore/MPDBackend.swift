@@ -44,9 +44,7 @@ final class MPDConnection: @unchecked Sendable {
                 switch state {
                 case .ready:
                     if once.claim() { cont.resume() }
-                case .failed(let err):
-                    if once.claim() { cont.resume(throwing: PlayerError.unreachable(err.localizedDescription)) }
-                case .waiting(let err):
+                case .failed(let err), .waiting(let err):
                     if once.claim() {
                         conn.cancel()
                         cont.resume(throwing: PlayerError.unreachable(err.localizedDescription))
@@ -93,13 +91,20 @@ final class MPDConnection: @unchecked Sendable {
         }
     }
 
+    /// Larger than any sane playlist answer; past it the server is misbehaving.
+    static let maxResponseBytes = 8 * 1024 * 1024
+
     /// Reads one full response: lines up to and including "OK", "OK MPD x.y.z" or "ACK ...".
     func readResponse() async throws -> [String] {
         var emptyReads = 0
         while true {
-            if let lines = Self.completeResponse(buffer) {
+            if Self.isComplete(buffer) {
+                let lines = Self.lines(buffer)
                 buffer.removeAll()
                 return lines
+            }
+            if buffer.count > Self.maxResponseBytes {
+                throw PlayerError.protocolError("MPD sent an oversized response.")
             }
             let chunk = try await receiveChunk()
             if chunk.isEmpty {
@@ -110,16 +115,51 @@ final class MPDConnection: @unchecked Sendable {
         }
     }
 
+    /// Looks at the last line only, so a long answer is not decoded again on every chunk.
+    static func isComplete(_ data: Data) -> Bool {
+        guard data.last == 0x0A else { return false }
+        let body = data.dropLast()
+        let start = body.lastIndex(of: 0x0A).map { body.index(after: $0) } ?? body.startIndex
+        let last = String(decoding: body[start...], as: UTF8.self)
+        return last == "OK" || last.hasPrefix("OK MPD ") || last.hasPrefix("ACK ")
+    }
+
+    /// Lossy decoding: one invalid byte in a tag must not stall every poll until the watchdog.
+    static func lines(_ data: Data) -> [String] {
+        String(decoding: data, as: UTF8.self)
+            .split(separator: "\n", omittingEmptySubsequences: false).dropLast().map(String.init)
+    }
+
     static func completeResponse(_ data: Data) -> [String]? {
-        guard let text = String(data: data, encoding: .utf8), text.hasSuffix("\n") else { return nil }
-        let lines = text.split(separator: "\n", omittingEmptySubsequences: false).dropLast().map(String.init)
-        guard let last = lines.last else { return nil }
-        if last == "OK" || last.hasPrefix("OK MPD ") || last.hasPrefix("ACK ") { return lines }
-        return nil
+        isComplete(data) ? lines(data) : nil
     }
 
     func close() {
         connection.cancel()
+    }
+}
+
+/// Returns `op`'s result, or throws "timed out" after `seconds`, whichever comes first.
+/// A stuck `op` is cancelled and left behind; the caller is never held past the deadline.
+func withDeadline<T: Sendable>(seconds: UInt64,
+                               _ op: @escaping @Sendable () async throws -> T) async throws -> T {
+    let once = OnceFlag()
+    return try await withCheckedThrowingContinuation { (cont: CheckedContinuation<T, Error>) in
+        let work = Task {
+            do {
+                let v = try await op()
+                if once.claim() { cont.resume(returning: v) }
+            } catch {
+                if once.claim() { cont.resume(throwing: error) }
+            }
+        }
+        Task {
+            try? await Task.sleep(nanoseconds: seconds * 1_000_000_000)
+            if once.claim() {
+                work.cancel()
+                cont.resume(throwing: PlayerError.unreachable("timed out"))
+            }
+        }
     }
 }
 
@@ -146,8 +186,14 @@ public struct MPDClient: Sendable {
         return "MPD: " + line
     }
 
-    /// Sends the commands and returns one array of pairs per command.
+    /// Sends the commands and returns one array of pairs per command. The deadline holds even
+    /// if the connection never calls back after the watchdog cancels it.
     public func exchange(_ commands: [String]) async throws -> [[MPDPair]] {
+        let client = self
+        return try await withDeadline(seconds: timeoutSeconds + 2) { try await client.exchangeOnce(commands) }
+    }
+
+    func exchangeOnce(_ commands: [String]) async throws -> [[MPDPair]] {
         let conn = try MPDConnection(host: host, port: port)
         let limit = timeoutSeconds
         let watchdog = Task {
