@@ -27,6 +27,18 @@ public final class MopidyBackend: PlayerBackend {
         self.playlist = playlist
     }
 
+    /// Own session: no cache, no waiting for connectivity, and a hard cap per request, so a
+    /// half-open connection after sleep fails in seconds instead of holding the queue.
+    private static let session: URLSession = {
+        let c = URLSessionConfiguration.ephemeral
+        c.timeoutIntervalForRequest = 8
+        c.timeoutIntervalForResource = 12
+        c.waitsForConnectivity = false
+        c.urlCache = nil
+        c.httpMaximumConnectionsPerHost = 2
+        return URLSession(configuration: c)
+    }()
+
     // MARK: JSON-RPC
 
     /// Runs several calls in one HTTP request (JSON-RPC 2.0 batch); results in call order.
@@ -34,7 +46,7 @@ public final class MopidyBackend: PlayerBackend {
         let payload: [[String: Any]] = calls.enumerated().map { i, c in
             ["jsonrpc": "2.0", "id": i + 1, "method": c.0, "params": c.1]
         }
-        var req = URLRequest(url: endpoint, timeoutInterval: 15)
+        var req = URLRequest(url: endpoint, timeoutInterval: 8)
         req.httpMethod = "POST"
         for (k, v) in headers { req.setValue(v, forHTTPHeaderField: k) }
         req.httpBody = try JSONSerialization.data(withJSONObject: payload)
@@ -42,7 +54,7 @@ public final class MopidyBackend: PlayerBackend {
         let data: Data
         let resp: URLResponse
         do {
-            (data, resp) = try await URLSession.shared.data(for: req)
+            (data, resp) = try await Self.session.data(for: req)
         } catch {
             throw PlayerError.unreachable(error.localizedDescription)
         }

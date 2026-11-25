@@ -32,6 +32,73 @@ struct TransportButton: View {
     }
 }
 
+/// Round -/+ button next to the volume slider. Held down, it repeats (macOS 14+).
+struct VolumeStepButton: View {
+    let symbol: String
+    let help: String
+    let key: KeyEquivalent
+    let action: () -> Void
+    @StateObject private var hover = HoverState()
+
+    var body: some View {
+        let button = Button(action: action) {
+            Image(systemName: symbol)
+                .font(.system(size: 11, weight: .bold))
+                .foregroundStyle(Color.primary)
+                .frame(width: 26, height: 26)
+                .background(Circle().fill(Color.primary.opacity(hover.on ? 0.16 : 0.08)))
+                .contentShape(Circle())
+        }
+        .buttonStyle(.plain)
+        .keyboardShortcut(key, modifiers: [])
+        .onHover { [hover] inside in hover.on = inside }
+        .help(help)
+        if #available(macOS 14.0, *) {
+            button.buttonRepeatBehavior(.enabled)
+        } else {
+            button
+        }
+    }
+}
+
+/// Mute, -, slider, +, value. It observes `VolumeState` alone, so a drag or a click
+/// redraws this row only.
+struct VolumeRow: View {
+    let m: AppModel
+    @ObservedObject var vol: VolumeState
+    let hasMute: Bool
+    let muted: Bool
+    let enabled: Bool
+
+    var body: some View {
+        HStack(spacing: 8) {
+            if hasMute {
+                Button { Task { await m.toggleMute() } } label: {
+                    Image(systemName: muted ? "speaker.slash.fill" : "speaker.fill").font(.system(size: 11))
+                }
+                .buttonStyle(.plain)
+                .foregroundStyle(muted ? Color.red : Color.secondary)
+                .help(muted ? "Unmute" : "Mute")
+            } else {
+                Image(systemName: "speaker.fill").font(.system(size: 11)).foregroundStyle(.secondary)
+            }
+            VolumeStepButton(symbol: "minus", help: "Volume down \(AppModel.volumeStep) (Down arrow)",
+                             key: .downArrow) { m.nudgeVolume(-AppModel.volumeStep) }
+            Slider(value: $vol.value, in: 0...100, onEditingChanged: { editing in
+                if editing { m.beginVolumeDrag() } else { m.commitVolume(Int(vol.value.rounded())) }
+            })
+            .controlSize(.small)
+            VolumeStepButton(symbol: "plus", help: "Volume up \(AppModel.volumeStep) (Up arrow)",
+                             key: .upArrow) { m.nudgeVolume(AppModel.volumeStep) }
+            Text("\(Int(vol.value.rounded()))")
+                .font(.system(size: 11).monospacedDigit())
+                .foregroundStyle(.secondary)
+                .frame(width: 24, alignment: .trailing)
+        }
+        .disabled(!enabled)
+    }
+}
+
 struct StationButton: View {
     let station: Station
     let active: Bool
@@ -108,36 +175,8 @@ struct PlayerView: View {
                 Spacer()
             }
 
-            // Volume
-            HStack(spacing: 8) {
-                if m.status.muted != nil {
-                    Button { Task { await m.toggleMute() } } label: {
-                        Image(systemName: m.isMuted ? "speaker.slash.fill" : "speaker.fill").font(.system(size: 11))
-                    }
-                    .buttonStyle(.plain)
-                    .foregroundStyle(m.isMuted ? Color.red : Color.secondary)
-                    .help(m.isMuted ? "Unmute" : "Mute")
-                } else {
-                    Button { Task { await m.setVolume(Int(m.volume) - 5) } } label: {
-                        Image(systemName: "speaker.fill").font(.system(size: 11))
-                    }
-                    .buttonStyle(.plain).foregroundStyle(.secondary)
-                }
-                Slider(value: $m.volume, in: 0...100, onEditingChanged: { editing in
-                    m.isEditingVolume = editing
-                    if !editing { Task { await m.setVolume(Int(m.volume.rounded())) } }
-                })
-                .controlSize(.small)
-                Button { Task { await m.setVolume(Int(m.volume) + 5) } } label: {
-                    Image(systemName: "speaker.wave.3.fill").font(.system(size: 11))
-                }
-                .buttonStyle(.plain).foregroundStyle(.secondary)
-                Text("\(Int(m.volume.rounded()))")
-                    .font(.system(size: 11).monospacedDigit())
-                    .foregroundStyle(.secondary)
-                    .frame(width: 24, alignment: .trailing)
-            }
-            .disabled(m.status.volume == nil)
+            VolumeRow(m: m, vol: m.vol, hasMute: m.status.muted != nil, muted: m.isMuted,
+                      enabled: m.status.volume != nil)
 
             Divider()
 
@@ -147,8 +186,9 @@ struct PlayerView: View {
                 .foregroundStyle(.secondary)
 
             if m.stations.isEmpty {
-                Text(m.error == nil ? "Loading..." : "No stations.")
-                    .font(.system(size: 12)).foregroundStyle(.secondary)
+                Text(m.stationsError ?? (m.stationsLoaded ? "No stations." : (m.error == nil ? "Loading..." : "No stations.")))
+                    .font(.system(size: 12)).foregroundStyle(m.stationsError == nil ? Color.secondary : Color.red)
+                    .fixedSize(horizontal: false, vertical: true)
             } else {
                 LazyVGrid(columns: columns, spacing: 6) {
                     ForEach(m.stations.prefix(stationCap)) { s in
@@ -179,8 +219,11 @@ struct PlayerView: View {
                     .help("Reload stations")
                 Button { m.editSettings() } label: { Image(systemName: "gearshape") }
                     .help("Settings")
-                Button { NSApplication.shared.terminate(nil) } label: { Image(systemName: "power") }
-                    .help("Quit")
+                Button { m.quit() } label: {
+                    Label("Quit", systemImage: "power").labelStyle(.titleAndIcon)
+                }
+                .keyboardShortcut("q", modifiers: .command)
+                .help("Quit MPD Bar (Command-Q)")
             }
             .buttonStyle(.plain)
             .font(.system(size: 12))

@@ -29,8 +29,10 @@ Homebrew builds the app on your Mac from source (needs the Xcode Command Line To
 \`\`\`bash
 brew tap ts-sz/mpd-bar https://github.com/${REPO}
 brew install ts-sz/mpd-bar/mpd-bar
-brew services start mpd-bar      # start now and at every login
+mpd-bar                          # opens the app
 \`\`\`
+
+To start it at every login, turn on **Open at login** at the bottom of Settings.
 
 Then create and edit the config file, and check it:
 
@@ -49,7 +51,14 @@ The format is in the [README](https://github.com/${REPO}#config-file). The app r
 \`\`\`bash
 brew update
 brew upgrade mpd-bar
-brew services restart mpd-bar
+\`\`\`
+
+Quit MPD Bar (**Quit** or Command-Q) and run \`mpd-bar\` again. Coming from 0.4.x, which ran as a
+\`brew services\` service, remove that service once:
+
+\`\`\`bash
+launchctl bootout gui/\$(id -u)/homebrew.mxcl.mpd-bar 2>/dev/null
+rm -f ~/Library/LaunchAgents/homebrew.mxcl.mpd-bar.plist
 \`\`\`
 
 The config file is kept across upgrades.

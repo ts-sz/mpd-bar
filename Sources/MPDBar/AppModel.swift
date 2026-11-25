@@ -1,13 +1,23 @@
 import MPDBarCore
+import ServiceManagement
 import SwiftUI
+
+/// Volume shown by the panel, kept out of `AppModel` so a slider drag or a -/+ click
+/// redraws the volume row only, not the whole panel and the menu bar label.
+@MainActor
+final class VolumeState: ObservableObject {
+    @Published var value: Double = 0
+}
 
 @MainActor
 final class AppModel: ObservableObject {
     @Published private(set) var config: AppConfig?
     @Published private(set) var configError: String?
     @Published var stations: [Station] = []
+    /// True once the playlist was read, even when it is empty.
+    @Published private(set) var stationsLoaded = false
+    @Published private(set) var stationsError: String?
     @Published var status = PlayerStatus()
-    @Published var volume: Double = 0
     @Published var error: String?
     @Published var busy = false
     @Published var showingSettings = false
@@ -16,6 +26,15 @@ final class AppModel: ObservableObject {
     @Published var testing = false
     @Published var saveError: String?
     @Published var browse: PlaylistBrowser?
+    /// State of the macOS login item, read from the system, never stored by the app.
+    @Published private(set) var openAtLogin = false
+    @Published private(set) var loginItemMessage: String?
+
+    let vol = VolumeState()
+    var volume: Double {
+        get { vol.value }
+        set { if vol.value != newValue { vol.value = newValue } }
+    }
 
     /// Editable copy shown by the Settings panel; written back through `ConfigFile` on Save.
     let draft = ConfigDraft()
@@ -26,7 +45,12 @@ final class AppModel: ObservableObject {
 
     var isEditingVolume = false
     var isVisible = false {
-        didSet { if isVisible && !oldValue { Task { await refresh() } } }
+        didSet {
+            guard isVisible != oldValue else { return }
+            if !isVisible { isEditingVolume = false }
+            // Restart the loop so opening the panel does not wait out a 30 s sleep.
+            startPolling(refreshFirst: isVisible)
+        }
     }
 
     private var backend: PlayerBackend?
@@ -35,18 +59,89 @@ final class AppModel: ObservableObject {
     private var configStamp: Date?
     private var configLoaded = false
 
+    /// Polls and actions run one at a time through this chain, so a poll never lands between
+    /// an action and its result, and requests reach the server in click order.
+    private var tail: Task<Void, Never>?
+    /// Bumped by every action and backend reset: a poll started before discards its result.
+    private var epoch = 0
+    private var pendingActions = 0
+    /// The poll queued or running in the chain; an action cancels it instead of waiting for it.
+    private var pollOp: Task<Void, Never>?
+    private var pollQueued = false
+    private var stationsRetryAt = Date.distantPast
+    /// Latest-wins counters: a queued play or volume superseded by a later click is skipped.
+    private var playIntent = 0
+    private var volumeIntent = 0
+    private var volumeSend: Task<Void, Never>?
+    /// Until then, a poll does not overwrite the volume shown: it may predate the last change.
+    private var volumeHoldUntil = Date.distantPast
+    private var testToken = 0
+    private var browseToken = 0
+    private var countToken = 0
+
     init() {
+        Self.exitIfAlreadyRunning()
         loadConfig(force: true)
+        refreshLoginItem()
         draft.load(from: config)
         showingSettings = config == nil
+        startPolling(refreshFirst: true)
+    }
+
+    private func startPolling(refreshFirst: Bool) {
+        pollTask?.cancel()
         pollTask = Task { [weak self] in
+            var refreshNow = refreshFirst
             while !Task.isCancelled {
-                await self?.refresh()
+                if refreshNow { await self?.refresh() }
+                refreshNow = true
                 let visible = self?.isVisible ?? false
                 let seconds: UInt64 = visible ? 4 : 30
                 try? await Task.sleep(nanoseconds: seconds * 1_000_000_000)
             }
         }
+    }
+
+    /// A second copy (login item plus a manual launch, or an old brew service) would put a
+    /// second icon in the menu bar: the newcomer leaves at once.
+    private static func exitIfAlreadyRunning() {
+        guard let id = Bundle.main.bundleIdentifier else { return }
+        let me = ProcessInfo.processInfo.processIdentifier
+        if NSRunningApplication.runningApplications(withBundleIdentifier: id)
+            .contains(where: { $0.processIdentifier != me }) {
+            exit(0)
+        }
+    }
+
+    // MARK: Open at login
+
+    func refreshLoginItem() {
+        let status = SMAppService.mainApp.status
+        openAtLogin = status == .enabled
+        if status == .requiresApproval {
+            loginItemMessage = "Allow MPD Bar in System Settings > General > Login Items."
+        }
+    }
+
+    func setOpenAtLogin(_ on: Bool) {
+        loginItemMessage = nil
+        do {
+            if on {
+                try SMAppService.mainApp.register()
+            } else {
+                try SMAppService.mainApp.unregister()
+            }
+        } catch {
+            loginItemMessage = "Login item: \(error.localizedDescription)"
+        }
+        refreshLoginItem()
+        if SMAppService.mainApp.status == .requiresApproval {
+            SMAppService.openSystemSettingsLoginItems()
+        }
+    }
+
+    func quit() {
+        NSApplication.shared.terminate(nil)
     }
 
     // MARK: Derived state
@@ -76,23 +171,36 @@ final class AppModel: ObservableObject {
     // MARK: Config file
 
     /// Reads the config file again when it changed since the last read (or always with `force`).
+    /// An automatic reload that fails (a half-saved hand edit) keeps the last good config.
     func loadConfig(force: Bool = false) {
         let stamp = ConfigFile.modificationDate(configURL)
         if configLoaded && !force && stamp == configStamp { return }
         configLoaded = true
         configStamp = stamp
+        do {
+            let loaded = try ConfigFile.load(configURL)
+            configError = nil
+            resetBackend()
+            config = loaded
+        } catch {
+            configError = error.localizedDescription
+            if force || config == nil {
+                resetBackend()
+                config = nil
+                showingSettings = true
+            }
+        }
+    }
+
+    private func resetBackend() {
+        epoch += 1
         backend = nil
         stations = []
+        stationsLoaded = false
+        stationsError = nil
+        stationsRetryAt = .distantPast
         error = nil
         testMessage = nil
-        do {
-            config = try ConfigFile.load(configURL)
-            configError = nil
-        } catch {
-            config = nil
-            configError = error.localizedDescription
-            showingSettings = true
-        }
     }
 
     /// Writes the template when there is no file yet, then opens it in the default text editor.
@@ -128,22 +236,33 @@ final class AppModel: ObservableObject {
     // MARK: Settings editor
 
     func editSettings() {
+        refreshLoginItem()
         draft.load(from: config)
         browse = nil
         saveError = nil
-        testMessage = nil
+        cancelTest()
         showingSettings = true
     }
 
     func closeEditor() {
         browse = nil
+        cancelTest()
         showingSettings = false
+    }
+
+    private func cancelTest() {
+        testToken += 1
+        browseToken += 1
+        countToken += 1
+        testing = false
+        testMessage = nil
     }
 
     func saveDraft() {
         do {
             let cfg = try draft.makeConfig()
             try ConfigFile.write(cfg, to: configURL)
+            cancelTest()
             saveError = nil
             browse = nil
             loadConfig(force: true)
@@ -155,38 +274,53 @@ final class AppModel: ObservableObject {
 
     /// Tests the panel's draft as typed, without saving it.
     func testDraft() {
+        testToken += 1
+        let mine = testToken
         testing = true
         testMessage = nil
         Task {
-            defer { testing = false }
+            let ok: Bool
+            let message: String
             do {
                 let b = try draft.makeConfig().makeBackend()
                 let st = try await b.status()
                 let list = try await b.stations()
-                testOK = true
-                testMessage = "Connected: \(st.state.rawValue), \(list.count) stations."
+                ok = true
+                message = "Connected: \(st.state.rawValue), \(list.count) stations."
             } catch {
-                testOK = false
-                testMessage = error.localizedDescription
+                ok = false
+                message = error.localizedDescription
             }
+            guard mine == testToken else { return }
+            testOK = ok
+            testMessage = message
+            testing = false
         }
     }
 
     // MARK: Playlist browser
 
     func openBrowse() {
+        browseToken += 1
+        countToken += 1
+        let mine = browseToken
         var state = PlaylistBrowser()
         state.loading = true
         browse = state
         Task {
+            var items: [PlaylistRef] = []
+            var failure: String?
             do {
                 let cfg = try draft.makeConfig(requirePlaylist: false)
-                let list = try await cfg.makeBackend(requirePlaylist: false).playlists()
-                browse?.items = list.sorted { $0.name.localizedStandardCompare($1.name) == .orderedAscending }
-                browse?.error = nil
+                items = try await cfg.makeBackend(requirePlaylist: false).playlists()
             } catch {
-                browse?.error = error.localizedDescription
+                failure = error.localizedDescription
             }
+            guard mine == browseToken else { return }
+            if failure == nil {
+                browse?.items = items.sorted { $0.name.localizedStandardCompare($1.name) == .orderedAscending }
+            }
+            browse?.error = failure
             browse?.loading = false
         }
     }
@@ -205,16 +339,20 @@ final class AppModel: ObservableObject {
         draft.playlist = duplicate ? p.uri : p.name
         browse?.count = nil
         browse?.counting = true
+        countToken += 1
+        let mine = countToken
         Task {
+            var count: Int?
+            var failure: String?
             do {
                 let cfg = try draft.makeConfig(requirePlaylist: false)
-                let list = try await cfg.makeBackend(requirePlaylist: false).stations()
-                browse?.count = list.count
-                browse?.counting = false
+                count = try await cfg.makeBackend(requirePlaylist: false).stations().count
             } catch {
-                browse?.error = error.localizedDescription
-                browse?.counting = false
+                failure = error.localizedDescription
             }
+            guard mine == countToken else { return }
+            if let failure { browse?.error = failure } else { browse?.count = count }
+            browse?.counting = false
         }
     }
 
@@ -228,37 +366,93 @@ final class AppModel: ObservableObject {
         return b
     }
 
+    /// Queues `op` after everything queued before it and returns its task.
+    @discardableResult
+    private func enqueue(_ op: @escaping @MainActor @Sendable () async -> Void) -> Task<Void, Never> {
+        let previous = tail
+        let task = Task { @MainActor in
+            _ = await previous?.value
+            await op()
+        }
+        tail = task
+        return task
+    }
+
+    /// One poll at most waits in the chain: opening the panel several times does not stack them.
     func refresh() async {
+        if pollQueued, let op = pollOp {
+            await op.value
+            return
+        }
+        pollQueued = true
+        let op = enqueue {
+            self.pollQueued = false
+            guard !Task.isCancelled else { return }
+            await self.refreshNow()
+        }
+        pollOp = op
+        await op.value
+    }
+
+    /// One poll. Every `@Published` write is guarded, so an unchanged server redraws nothing.
+    private func refreshNow() async {
         loadConfig()
         guard config != nil else { return }
+        let started = epoch
         do {
             let b = try currentBackend()
-            if stations.isEmpty { stations = try await b.stations() }
             let s = try await b.status()
-            status = s
-            if !isEditingVolume, let v = s.volume { volume = Double(v) }
-            error = nil
+            guard started == epoch else { return }
+            if status != s { status = s }
+            if !isEditingVolume, Date() >= volumeHoldUntil, let v = s.volume { volume = Double(v) }
+            if error != nil { error = nil }
+            if !stationsLoaded, Date() >= stationsRetryAt {
+                do {
+                    let list = try await b.stations()
+                    guard started == epoch else { return }
+                    // Duplicate URIs would give duplicate grid identities.
+                    var seen = Set<String>()
+                    stations = list.filter { seen.insert($0.uri).inserted }
+                    stationsLoaded = true
+                    stationsError = nil
+                } catch {
+                    guard started == epoch else { return }
+                    // A wrong playlist is not refetched on every poll.
+                    stationsRetryAt = Date().addingTimeInterval(30)
+                    let msg = error.localizedDescription
+                    if stationsError != msg { stationsError = msg }
+                }
+            }
         } catch {
-            self.error = error.localizedDescription
+            // A poll cut short by an action is not an error worth showing.
+            guard started == epoch, !Task.isCancelled else { return }
+            let msg = error.localizedDescription
+            if self.error != msg { self.error = msg }
         }
     }
 
     func reloadStations() async {
-        stations = []
-        backend = nil
+        resetBackend()
         await refresh()
     }
 
-    private func run(_ body: @MainActor (PlayerBackend) async throws -> Void) async {
-        busy = true
-        defer { busy = false }
-        do {
-            try await body(try currentBackend())
-            error = nil
-        } catch {
-            self.error = error.localizedDescription
-        }
-        await refresh()
+    private func run(_ body: @escaping @MainActor @Sendable (PlayerBackend) async throws -> Void) async {
+        epoch += 1
+        pollOp?.cancel()        // its result would be dropped anyway; do not wait for it
+        pendingActions += 1
+        if !busy { busy = true }
+        await enqueue {
+            do {
+                try await body(try self.currentBackend())
+                if self.error != nil { self.error = nil }
+            } catch {
+                self.error = error.localizedDescription
+            }
+            // Only the last queued action reads the state back.
+            if self.pendingActions == 1 { await self.refreshNow() }
+        }.value
+        pendingActions -= 1
+        if pendingActions == 0 { busy = false }
     }
 
     // MARK: Actions
@@ -266,8 +460,11 @@ final class AppModel: ObservableObject {
     /// Pressing play means "I want to hear it": a muted server is unmuted first.
     func play(_ s: Station) async {
         status.currentURI = s.uri
+        playIntent += 1
+        let mine = playIntent
         let unmute = isMuted
         await run { b in
+            guard mine == self.playIntent else { return }
             if unmute { try await b.setMute(false) }
             try await b.play(s)
         }
@@ -305,6 +502,49 @@ final class AppModel: ObservableObject {
     func setVolume(_ v: Int) async {
         let clamped = max(0, min(100, v))
         volume = Double(clamped)
-        await run { try await $0.setVolume(clamped) }
+        holdVolume()
+        volumeIntent += 1
+        let mine = volumeIntent
+        await run { b in
+            guard mine == self.volumeIntent else { return }
+            try await b.setVolume(clamped)
+        }
+    }
+
+    /// Slider drag starts: a -/+ click still waiting must not move the thumb mid-drag.
+    func beginVolumeDrag() {
+        isEditingVolume = true
+        volumeSend?.cancel()
+        volumeSend = nil
+    }
+
+    /// Slider released: hold the value and invalidate polls in flight before the task runs,
+    /// so no poll lands in between and snaps the thumb back.
+    func commitVolume(_ v: Int) {
+        isEditingVolume = false
+        volume = Double(max(0, min(100, v)))
+        holdVolume()
+        epoch += 1
+        Task { await setVolume(v) }
+    }
+
+    /// Step of the -/+ buttons and the arrow keys.
+    static let volumeStep = 5
+
+    private func holdVolume() { volumeHoldUntil = Date().addingTimeInterval(1.5) }
+
+    /// -/+ buttons: the number moves at once, the server gets one call once the clicks
+    /// (or a held button) pause for 250 ms, instead of one request per step.
+    func nudgeVolume(_ delta: Int) {
+        guard status.volume != nil else { return }
+        let target = max(0, min(100, Int(volume.rounded()) + delta))
+        volume = Double(target)
+        holdVolume()
+        volumeSend?.cancel()
+        volumeSend = Task { [weak self] in
+            try? await Task.sleep(nanoseconds: 250_000_000)
+            guard !Task.isCancelled, let self else { return }
+            await self.setVolume(target)
+        }
     }
 }

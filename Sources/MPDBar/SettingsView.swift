@@ -50,6 +50,23 @@ private struct Editor: View {
                 .font(.system(size: 10))
                 .foregroundStyle(.tertiary)
                 .fixedSize(horizontal: false, vertical: true)
+
+            Divider()
+
+            HStack {
+                Toggle("Open at login", isOn: Binding(get: { m.openAtLogin }, set: { m.setOpenAtLogin($0) }))
+                    .toggleStyle(.switch)
+                    .controlSize(.small)
+                    .font(.system(size: 11))
+                Spacer()
+                Button { m.quit() } label: { Label("Quit", systemImage: "power").labelStyle(.titleAndIcon) }
+                    .buttonStyle(.plain)
+                    .font(.system(size: 12))
+                    .foregroundStyle(.secondary)
+                    .keyboardShortcut("q", modifiers: .command)
+                    .help("Quit MPD Bar (Command-Q)")
+            }
+            if let msg = m.loginItemMessage { message(msg, ok: false) }
         }
     }
 
